@@ -1,0 +1,18 @@
+{
+  "name": "trackhour",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Steam profile stats, but for AI usage. Import your history, see your stats, design an embeddable card.",
+  "scripts": {
+    "dev": "pnpm --filter @trackhour/web dev",
+    "build": "pnpm --filter @trackhour/web build",
+    "preview": "pnpm --filter @trackhour/web preview",
+    "test": "pnpm --filter @trackhour/core test",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "license": "MIT",
+  "packageManager": "pnpm@12.5.1",
+  "engines": {
+    "node": ">=20"
+  }
+}

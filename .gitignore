@@ -1,0 +1,24 @@
+# dependencies and build output
+node_modules
+dist
+coverage
+*.tsbuildinfo
+.vercel
+
+# secrets and local config (there are none in phase 1, keep it that way)
+.env
+.env.*
+!.env.example
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# editors and OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
