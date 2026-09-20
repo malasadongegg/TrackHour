@@ -166,6 +166,19 @@ importers:
 
   .: {}
 
+  card:
+    dependencies:
+      '@trackhour/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^5.0.1
+        version: 5.0.1(vite@8.3.0(jiti@2.7.0))
+
   core:
     devDependencies:
       typescript:

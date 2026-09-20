@@ -7,7 +7,7 @@
     "dev": "pnpm --filter @trackhour/web dev",
     "build": "pnpm --filter @trackhour/web build",
     "preview": "pnpm --filter @trackhour/web preview",
-    "test": "pnpm --filter @trackhour/core test",
+    "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck"
   },
   "license": "MIT",

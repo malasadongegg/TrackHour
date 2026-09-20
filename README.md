@@ -81,8 +81,8 @@ No environment variables are needed.
 | --- | --- | --- |
 | [`core/`](core) | Pure TypeScript: export parsing, sessionization, stats, the SVG card generator, shared types. No DOM, no network. | Built |
 | [`web/`](web) | The Vite, React, TypeScript and Tailwind app: import, dashboard, card designer. | Built |
-| [`card/`](card) | Hosted SVG card endpoint. | Phase 2 stub |
-| [`supabase/`](supabase) | Saved profiles and auth. Aggregate numbers only. | Phase 2 stub |
+| [`card/`](card) | Hosted card endpoint logic: validation, caching, rate limiting. | Built and tested, not deployed |
+| [`supabase/`](supabase) | Saved profiles schema with row level security. Aggregate numbers only. | Schema written, not applied |
 | [`extension/`](extension) | Opt-in Chrome extension for live active time. | Phase 3 stub |
 | [`claude-code-hook/`](claude-code-hook) | Claude Code hook for sessions and lines changed. | Phase 3 stub |
 
@@ -102,7 +102,7 @@ The app is a static build with no server and no environment variables.
 ## Roadmap
 
 1. **Phase 1 (this repo today):** everything above, 100% client-side.
-2. **Phase 2:** Supabase and auth for a saved profile, and a hosted card endpoint that returns your SVG at a stable URL, so an embedded image shows current data. Only aggregate numbers are ever stored server-side. The endpoint will have caching and rate limiting.
+2. **Phase 2 (started):** Supabase and auth for a saved profile, and a hosted card endpoint that returns your SVG at a stable URL, so an embedded image shows current data. The endpoint logic (with caching and rate limiting) and the database schema exist. Still to do: a Supabase project, sign-in, the upload-aggregates flow, and deploying the endpoint. Only aggregate numbers are ever stored server-side.
 3. **Phase 3:** an opt-in Chrome extension that measures live active time on claude.ai and chatgpt.com, a Claude Code hook for sessions and lines changed, and Discord integrations that reuse the same card (Rich Presence through the extension, and a bot or webhook that posts the card as an embed).
 
 ## Contributing

@@ -1,26 +1,31 @@
 # card/
 
-Not built yet (phase 2).
+The hosted card endpoint's logic (phase 2). It is built and tested, but **not deployed**: it needs a Supabase project and a thin serverless adapter, both of which come with phase 2 setup.
 
-A hosted endpoint that returns a user's card as an SVG at a stable URL, so it can be embedded as an image anywhere and show current data on every load.
+`handleCardRequest(request, { store, limiter })` returns `{ status, headers, body }` and has no framework attached. All rendering is `@trackhour/core`'s `renderCard`, verbatim, so a hosted card is byte for byte what the designer previews.
 
-The endpoint adds no rendering logic of its own. It loads a saved aggregate profile and a saved card config, then calls, verbatim:
-
-```ts
-import { normalizeCardConfig, renderCard } from "@trackhour/core";
-renderCard(normalizeCardConfig(savedConfig), cardData);
+```
+GET /api/card?u=<slug>[&theme=github-dark][&layout=compact|detailed|showcase]
+              [&title=..][&accent=ff00aa][&stats=hoursOnRecord,sessions][&heatmap=0|1]
 ```
 
-`normalizeCardConfig` and `renderCard` are written for untrusted input (hex-only colors, XML-escaped text, no external references), so a config from a database or URL is safe to render.
+The saved design comes first, and query parameters override styling only. Which tools appear is fixed by the saved design, because stored combined stats cover exactly that set.
 
-## Abuse and load (required before launch)
+## Built in
 
-A public image URL is an abuse vector, so the endpoint must ship with:
+- **Untrusted input everywhere.** The slug is pattern checked, and the stored config and every query override go through `normalizeCardConfig` (hex-only colors, known keys only). Text is XML-escaped by the renderer.
+- **Caching.** `Cache-Control` with `s-maxage` and `stale-while-revalidate`, plus a weak `ETag` and 304 support.
+- **Rate limiting.** Per caller, with `Retry-After`. The in-memory limiter is for tests and a single instance. Production needs the same `RateLimiter` interface backed by a shared store (for example Upstash Redis or Vercel KV), or the platform's rate limiting in front.
+- **Graceful failures.** Errors return a small SVG so a README shows a message instead of a broken image, and never leak internals.
+- **Aggregates only.** The store interface can only return aggregate numbers. Freshness on the card ("Updated ...") is the data's own timestamp.
+- **Honest labels.** Imported data stays labeled Estimated on the hosted card too.
 
-- **Caching.** Set `Cache-Control` with a short `max-age` and `stale-while-revalidate`, and cache rendered SVGs at the edge, so a popular README does not hit the database on every view.
-- **Rate limiting.** Per IP and per profile, with a cheap fallback response when limited.
-- **Input limits.** Reject oversized or malformed config, and only ever read aggregate numbers, never raw data.
-- **Safe headers.** `Content-Type: image/svg+xml` and `X-Content-Type-Options: nosniff`.
+## Wiring it up (phase 2 setup)
+
+1. Create a Supabase project and run [`supabase/migrations/0001_profiles.sql`](../supabase/migrations/0001_profiles.sql).
+2. Implement `ProfileStore.getPublicProfile(slug)` with the Supabase client (anon key, public rows only).
+3. Add a serverless function that maps its request to `CardRequest`, calls `handleCardRequest`, and copies the response out. Put a shared-store `RateLimiter` behind it.
+4. Deploy that function separately from the static site, or under `web/api` if you keep one Vercel project. That changes the current "static build, no server" deploy, so it is a deliberate step.
 
 ## Discord
 
