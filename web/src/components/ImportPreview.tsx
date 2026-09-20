@@ -14,14 +14,14 @@ interface Props {
 
 export function ImportPreview({ fileName, preview: p, timeZone, busy, onConfirm, onCancel }: Props) {
   const meta = TOOL_META[p.toolKey];
-  const nothingNew = p.newConversations === 0;
+  const nothingNew = p.newConversations + p.updatedConversations === 0;
 
   const rows: Array<[string, string]> = [
     ["Provider", meta.label],
     ["Earliest activity", fmtDate(p.earliest, timeZone)],
     ["Latest activity", fmtDate(p.latest, timeZone)],
-    ["Conversations", `${fmtInt(p.newConversations)} new of ${fmtInt(p.conversationsInFile)} in file`],
-    ["Already imported", `${fmtInt(p.duplicateConversations)} will be skipped`],
+    ["Conversations", `${fmtInt(p.newConversations)} new, ${fmtInt(p.updatedConversations)} updated, of ${fmtInt(p.conversationsInFile)} in file`],
+    ["Already imported", `${fmtInt(p.unchangedConversations)} unchanged, will be skipped`],
     ["Messages", `${fmtInt(p.messages.total)} (${fmtInt(p.messages.user)} yours, ${fmtInt(p.messages.assistant)} replies)`],
     ["Estimated sessions", fmtInt(p.estimatedSessions)],
     ["Estimated usage", `${fmtHours(p.estimatedSeconds)} hrs (${fmtDuration(p.estimatedSeconds)})`],
@@ -56,7 +56,7 @@ export function ImportPreview({ fileName, preview: p, timeZone, busy, onConfirm,
         {p.skippedConversations > 0 && (
           <p className="mt-2 text-xs text-muted">{fmtInt(p.skippedConversations)} empty or unreadable conversations in the file were ignored.</p>
         )}
-        {nothingNew && <p className="mt-3 text-sm text-warn">Nothing new here. Every conversation in this file is already imported.</p>}
+        {nothingNew && <p className="mt-3 text-sm text-warn">Nothing new here. Every conversation in this file is already imported with the same messages.</p>}
 
         <div className="mt-6 flex justify-end gap-3">
           <button type="button" onClick={onCancel} className="rounded border border-line px-4 py-2 text-sm text-ink hover:border-accent">

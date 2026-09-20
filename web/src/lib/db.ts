@@ -74,22 +74,42 @@ export async function loadLibrary(): Promise<Library> {
   };
 }
 
-/** Stores a batch and its conversations. Returns how many were actually new. */
-export async function addImport(batch: ImportBatch, records: ConversationRecord[]): Promise<number> {
+/**
+ * Writes a batch: brand new conversations are added, and `updated` ones REPLACE
+ * the stored copy (same key, so nothing is double counted). Batch conversation
+ * counts are then recomputed, and batches left with no conversations (every one
+ * superseded by a newer export) are removed.
+ */
+export async function addImport(
+  batch: ImportBatch,
+  fresh: ConversationRecord[],
+  updated: ConversationRecord[] = [],
+): Promise<{ added: number; updated: number }> {
   const d = await db();
   const tx = d.transaction(["records", "batches"], "readwrite");
   const store = tx.objectStore("records");
   let added = 0;
-  for (const r of records) {
+  for (const r of fresh) {
     const key = recordKey(r);
-    // Belt and braces: the caller already deduped, but never overwrite an existing conversation.
-    if (await store.get(key)) continue;
+    if (await store.get(key)) continue; // caller already deduped, never overwrite by accident
     await store.put({ ...r, key });
     added++;
   }
-  if (added > 0) await tx.objectStore("batches").put({ ...batch, conversationCount: added });
+  let replaced = 0;
+  for (const r of updated) {
+    const key = recordKey(r);
+    if (!(await store.get(key))) continue;
+    await store.put({ ...r, key });
+    replaced++;
+  }
+  if (added + replaced > 0) await tx.objectStore("batches").put({ ...batch, conversationCount: added + replaced });
+  for (const b of await tx.objectStore("batches").getAll()) {
+    const owned = (await store.index("byBatch").getAllKeys(b.id)).length;
+    if (owned === 0) await tx.objectStore("batches").delete(b.id);
+    else if (owned !== b.conversationCount) await tx.objectStore("batches").put({ ...b, conversationCount: owned });
+  }
   await tx.done;
-  return added;
+  return { added, updated: replaced };
 }
 
 export async function deleteBatch(batchId: string): Promise<void> {

@@ -81,7 +81,7 @@ export interface ImportBatch {
   toolKey: ToolKey;
   fileName: string;
   importedAt: number;
-  /** Conversations actually stored by this batch (duplicates excluded). */
+  /** Conversations this batch currently owns (new ones, and ones it updated). */
   conversationCount: number;
 }
 
@@ -110,14 +110,17 @@ export interface ParsedExport extends ParseResult {
 
 /**
  * Describes what committing an import WOULD add. Everything except the
- * `*InFile` / `duplicate*` fields is computed over the NEW conversations only,
- * so the numbers match what will actually be stored.
+ * conversation counts is computed over the NEW and UPDATED conversations only,
+ * so the numbers match what will actually be written.
  */
 export interface ImportPreview {
   toolKey: ToolKey;
   conversationsInFile: number;
   newConversations: number;
-  duplicateConversations: number;
+  /** Already stored, but this file has more messages, so the stored copy is replaced. */
+  updatedConversations: number;
+  /** Already stored with nothing new. Skipped. */
+  unchangedConversations: number;
   skippedConversations: number;
   earliest: number | null;
   latest: number | null;

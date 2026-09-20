@@ -60,7 +60,7 @@ export function HowEstimated({ options, onChange }: Props) {
               For ChatGPT, message counts follow the branch you see. Edited and regenerated replies still add activity time but not
               message counts.
             </li>
-            <li>A conversation that was already imported is skipped on re-import, even if a newer export has more messages in it.</li>
+            <li>Re-importing a newer export updates conversations that gained messages and skips ones with nothing new, so nothing is counted twice. An older export never overwrites newer data.</li>
           </ul>
         </div>
         <div className="space-y-2 rounded-lg border border-line bg-bg/50 p-4">

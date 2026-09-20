@@ -54,7 +54,8 @@ interface Pending {
 interface Report {
   toolKey: ToolKey;
   added: number;
-  duplicates: number;
+  updated: number;
+  unchanged: number;
 }
 
 export function App() {
@@ -158,18 +159,18 @@ export function App() {
     if (!pending || !library) return;
     setBusy(true);
     try {
-      const { fresh, duplicates } = dedupeRecords(library.records, pending.parsed.records);
+      const { fresh, updated, unchanged } = dedupeRecords(library.records, pending.parsed.records);
       const batch: ImportBatch = {
         id: pending.parsed.records[0].importBatchId,
         toolKey: pending.parsed.toolKey,
         fileName: pending.fileName,
         importedAt: Date.now(),
-        conversationCount: fresh.length,
+        conversationCount: fresh.length + updated.length,
       };
-      const added = await addImport(batch, fresh);
+      const result = await addImport(batch, fresh, updated);
       void requestPersistence();
       await reload();
-      setReport({ toolKey: pending.parsed.toolKey, added, duplicates: duplicates.length });
+      setReport({ toolKey: pending.parsed.toolKey, added: result.added, updated: result.updated, unchanged: unchanged.length });
       setPending(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Import failed.");
@@ -241,10 +242,8 @@ export function App() {
     <Shell nav={hasData ? <Tabs page={page} onChange={setPage} auth={auth} /> : null}>
       {report && (
         <Banner tone="ok" onClose={() => setReport(null)}>
-          Imported <strong>{fmtInt(report.added)}</strong> new {TOOL_META[report.toolKey].label} conversations.{" "}
-          {report.duplicates > 0
-            ? `Skipped ${fmtInt(report.duplicates)} already imported ${report.duplicates === 1 ? "duplicate" : "duplicates"}.`
-            : "No duplicates were skipped."}
+          {TOOL_META[report.toolKey].label}: <strong>{fmtInt(report.added)}</strong> new and <strong>{fmtInt(report.updated)}</strong> updated
+          conversations. {fmtInt(report.unchanged)} already imported {report.unchanged === 1 ? "conversation was" : "conversations were"} unchanged and skipped.
         </Banner>
       )}
       {error && (

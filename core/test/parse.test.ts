@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildPreview, dedupeRecords } from "../src/importing";
+import { sessionize } from "../src/sessionize";
 import { detectProvider, parseChatGPT, parseClaude, parseExport } from "../src/parse";
 import { at, rec } from "./helpers";
 
@@ -156,38 +157,64 @@ describe("parseClaude", () => {
   });
 });
 
-describe("dedupe and preview", () => {
+describe("dedupe, updates and preview", () => {
   const a = rec("chatgpt", [at("2026-03-02T09:00:00Z"), at("2026-03-02T09:10:00Z")], { externalRef: "a" });
   const b = rec("chatgpt", [at("2026-03-05T09:00:00Z")], { externalRef: "b" });
   const c = rec("chatgpt", [at("2026-03-09T09:00:00Z")], { externalRef: "c" });
+  /** The same conversation "a" after it was continued in a later export. */
+  const aLater = rec("chatgpt", [at("2026-03-02T09:00:00Z"), at("2026-03-02T09:10:00Z"), at("2026-03-04T10:00:00Z"), at("2026-03-04T10:05:00Z")], { externalRef: "a" });
 
-  it("skips conversations already stored and repeats inside the file", () => {
-    const { fresh, duplicates } = dedupeRecords([a], [a, b, b, c]);
+  it("sorts incoming conversations into fresh, updated and unchanged", () => {
+    const { fresh, updated, unchanged } = dedupeRecords([a], [aLater, b, c]);
     expect(fresh.map((r) => r.externalRef)).toEqual(["b", "c"]);
-    expect(duplicates).toHaveLength(2);
+    expect(updated.map((r) => r.externalRef)).toEqual(["a"]);
+    expect(unchanged).toHaveLength(0);
   });
 
-  it("does not treat the same id in a different tool as a duplicate", () => {
+  it("skips a conversation that is identical or older than the stored copy", () => {
+    expect(dedupeRecords([a], [a]).unchanged).toHaveLength(1);
+    // Importing an OLD export after a newer one must not roll the data back.
+    const r = dedupeRecords([aLater], [a]);
+    expect(r.updated).toHaveLength(0);
+    expect(r.unchanged).toHaveLength(1);
+  });
+
+  it("collapses repeats inside one file to the richest copy", () => {
+    const r = dedupeRecords([], [a, aLater, aLater, b]);
+    expect(r.fresh.map((x) => x.externalRef).sort()).toEqual(["a", "b"]);
+    expect(r.fresh.find((x) => x.externalRef === "a")).toBe(aLater);
+    expect(r.unchanged).toHaveLength(2);
+  });
+
+  it("does not treat the same id in a different tool as the same conversation", () => {
     const other = rec("claude", [at("2026-03-02T09:00:00Z")], { externalRef: "a" });
     expect(dedupeRecords([a], [other]).fresh).toHaveLength(1);
   });
 
-  it("previews only what would actually be added", () => {
-    const p = buildPreview("chatgpt", [a], [a, b, c], 2);
-    expect(p.conversationsInFile).toBe(3);
-    expect(p.newConversations).toBe(2);
-    expect(p.duplicateConversations).toBe(1);
-    expect(p.skippedConversations).toBe(2);
-    expect(p.earliest).toBe(at("2026-03-05T09:00:00Z"));
-    expect(p.latest).toBe(at("2026-03-09T09:00:00Z"));
-    expect(p.estimatedSessions).toBe(2);
-    expect(p.estimatedSeconds).toBe(120); // two single-message sessions, floored to 1 minute
-    expect(p.messages.total).toBe(2);
+  it("re-exporting adds only the new activity: replacing a record never double counts", () => {
+    const before = sessionize([a], "chatgpt");
+    // Simulate the store after applying an update: the record is swapped, not appended.
+    const { updated } = dedupeRecords([a], [aLater]);
+    const after = sessionize([updated[0]], "chatgpt");
+    expect(after.reduce((s, x) => s + x.messageCount, 0)).toBe(4);
+    expect(before.reduce((s, x) => s + x.messageCount, 0)).toBe(2);
   });
 
-  it("previews an all-duplicate re-import as empty", () => {
+  it("previews new and updated conversations and reports the unchanged ones", () => {
+    const p = buildPreview("chatgpt", [a, b], [aLater, b, c], 2);
+    expect(p.conversationsInFile).toBe(3);
+    expect(p.newConversations).toBe(1); // c
+    expect(p.updatedConversations).toBe(1); // a
+    expect(p.unchangedConversations).toBe(1); // b
+    expect(p.skippedConversations).toBe(2);
+    expect(p.messages.total).toBe(5); // aLater (4) + c (1)
+    expect(p.latest).toBe(at("2026-03-09T09:00:00Z"));
+  });
+
+  it("previews an unchanged re-import as empty", () => {
     const p = buildPreview("chatgpt", [a, b], [a, b]);
-    expect(p.newConversations).toBe(0);
+    expect(p.newConversations + p.updatedConversations).toBe(0);
+    expect(p.unchangedConversations).toBe(2);
     expect(p.estimatedSessions).toBe(0);
     expect(p.earliest).toBeNull();
   });
