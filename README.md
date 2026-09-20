@@ -20,7 +20,7 @@ Every card is one self-contained SVG. These are the actual files the designer pr
 
 ![GitHub Dark, detailed](docs/examples/github-dark-detailed.svg)
 
-Everything happens in your browser. No account, no backend, no upload.
+Everything happens in your browser. No account is needed to import, see your stats, or design and download a card. An optional account only adds a hosted card link.
 
 ## Privacy
 
@@ -28,8 +28,10 @@ Your chats never touch our servers. This is a hard guarantee, not a promise, and
 
 - **Parsed in your browser.** Your export ZIP is opened and read locally with JSZip.
 - **Only timestamps and counts are extracted.** Message text, conversation titles and file contents are never copied out of the export, never stored, and never sent anywhere. A unit test fails if a text field ever appears in the stored data.
-- **Stored only on your device.** Results live in your browser's IndexedDB. "Wipe everything" in the app deletes them.
-- **No network calls.** The app never makes a request with your data. The deployed site also sends a `Content-Security-Policy` with `connect-src 'self'`, so the browser itself blocks the page from talking to any other server. Open DevTools, watch the Network tab while you import, and see for yourself.
+- **Stored on your device.** Imported data lives in your browser's IndexedDB. "Wipe everything" in the app deletes it.
+- **Importing never touches the network.** Parsing and stats run locally and no request is made with your data.
+- **The one exception is opt-in.** If you sign in and press "Save my totals" to get a hosted card link, only aggregates are uploaded: your card design, totals per tool, and daily minutes for the last 30 weeks. The Account page shows the complete payload before you save, and "Delete from server" removes it. Never raw files, messages, titles, or per-message timestamps.
+- **The browser enforces it.** The deployed site sends a `Content-Security-Policy` that only allows connections to itself and Supabase, so the page cannot send data anywhere else. Open DevTools, watch the Network tab, and see for yourself.
 - **Open source.** Read the parsing code in [`core/src/parse`](core/src/parse).
 
 There is no "connect your AI account" feature and there never will be. Neither OpenAI nor Anthropic offers an API to pull your chat history or usage time. Your history comes from the export ZIP that each service lets you download.
@@ -73,7 +75,7 @@ pnpm typecheck
 pnpm build        # static build into web/dist
 ```
 
-No environment variables are needed.
+No environment variables are needed to run the app. Accounts are optional; see [`supabase/README.md`](supabase/README.md) to enable them.
 
 ## Project layout
 
@@ -81,8 +83,8 @@ No environment variables are needed.
 | --- | --- | --- |
 | [`core/`](core) | Pure TypeScript: export parsing, sessionization, stats, the SVG card generator, shared types. No DOM, no network. | Built |
 | [`web/`](web) | The Vite, React, TypeScript and Tailwind app: import, dashboard, card designer. | Built |
-| [`card/`](card) | Hosted card endpoint logic: validation, caching, rate limiting. | Built and tested, not deployed |
-| [`supabase/`](supabase) | Saved profiles schema with row level security. Aggregate numbers only. | Schema written, not applied |
+| [`card/`](card) | Hosted card endpoint logic: validation, caching, rate limiting, Supabase store. | Built and tested |
+| [`supabase/`](supabase) | Profiles schema with row level security. Aggregates only. | Schema written, needs setup |
 | [`extension/`](extension) | Opt-in Chrome extension for live active time. | Phase 3 stub |
 | [`claude-code-hook/`](claude-code-hook) | Claude Code hook for sessions and lines changed. | Phase 3 stub |
 
@@ -90,19 +92,18 @@ No environment variables are needed.
 
 ## Deploy to Vercel
 
-The app is a static build with no server and no environment variables.
-
 1. Import the repository in Vercel.
 2. Set **Root Directory** to `web`. The framework preset is detected as Vite.
-3. Leave **Include source files outside of the Root Directory** enabled (the default). The app imports `core/` from the parent folder.
-4. Deploy.
+3. Leave **Include source files outside of the Root Directory** enabled (the default). The app imports `core/` and `card/` from the parent folder.
+4. Optional, to enable accounts and hosted cards, add environment variables (see [`supabase/README.md`](supabase/README.md)): `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` for the site, and `SUPABASE_URL` and `SUPABASE_ANON_KEY` for the `/api/card` function. All four are public values. **Never add the `service_role` key anywhere.**
+5. Deploy.
 
-[`web/vercel.json`](web/vercel.json) rewrites all routes to `index.html`, since the app has client-side routes such as `/card`, and sets the security headers described above. If the install step cannot see the workspace, set the Install Command to `cd .. && pnpm install --frozen-lockfile`.
+Without the variables it is a plain static site. [`web/vercel.json`](web/vercel.json) rewrites app routes (such as `/card` and `/account`) to `index.html`, leaves `/api` to the function, and sets the security headers described above. If the install step cannot see the workspace, set the Install Command to `cd .. && pnpm install --frozen-lockfile`.
 
 ## Roadmap
 
 1. **Phase 1 (this repo today):** everything above, 100% client-side.
-2. **Phase 2 (started):** Supabase and auth for a saved profile, and a hosted card endpoint that returns your SVG at a stable URL, so an embedded image shows current data. The endpoint logic (with caching and rate limiting) and the database schema exist. Still to do: a Supabase project, sign-in, the upload-aggregates flow, and deploying the endpoint. Only aggregate numbers are ever stored server-side.
+2. **Phase 2 (built, needs your Supabase setup):** GitHub sign-in, saving aggregates, and a hosted card endpoint (`/api/card?u=name`) with caching and rate limiting. Only aggregate numbers are ever stored server-side.
 3. **Phase 3:** an opt-in Chrome extension that measures live active time on claude.ai and chatgpt.com, a Claude Code hook for sessions and lines changed, and Discord integrations that reuse the same card (Rich Presence through the extension, and a bot or webhook that posts the card as an embed).
 
 ## Contributing
@@ -111,7 +112,8 @@ Issues and pull requests are welcome. Before opening a PR, run `pnpm test` and `
 
 - **Keep `core/` pure.** No DOM, no network, no clock reads (pass `now` in). Add tests for anything you add.
 - **Never store message text or titles.** Parsers may only extract timestamps and counts. The privacy test in `core/test/parse.test.ts` must keep passing.
-- **No OAuth-to-AI-provider flows.** Data comes from export ZIPs and, later, the opt-in extension.
+- **No OAuth-to-AI-provider flows.** Data comes from export ZIPs and, later, the opt-in extension. (Signing in to this site with GitHub is fine; connecting to ChatGPT or Claude is not a thing.)
+- **Only aggregates leave the browser, only when the user opts in.** Never the `service_role` key in client code.
 - **Label data honestly.** Estimated and measured numbers are never silently mixed.
 - **No em dashes in UI copy.**
 

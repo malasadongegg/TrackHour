@@ -318,3 +318,27 @@ describe("theme presets", () => {
     for (const key of THEME_KEYS) expectWellFormed(render({ theme: key, colors: THEME_PRESETS[key].colors }));
   });
 });
+
+describe("toAggregates (the only data a saved profile uploads)", () => {
+  it("keeps only stats and recent per-day minutes", async () => {
+    const { toAggregates, AGGREGATE_DAYS } = await import("../src");
+    const old = rec("chatgpt", [at("2025-01-05T09:00:00Z"), at("2025-01-05T09:10:00Z")], { externalRef: "old" });
+    const recs = [...records, old];
+    const sess = [...sessionize(recs, "chatgpt"), ...sessionize(recs, "claude")];
+    const agg = toAggregates(buildCardData(sess, recs, ctx));
+    expect(Object.keys(agg).sort()).toEqual(["all", "byTool", "daysByTool", "timeZone", "updatedAt"]);
+    const cutoff = new Date(NOW - AGGREGATE_DAYS * 86_400_000).toISOString().slice(0, 10);
+    for (const days of Object.values(agg.daysByTool)) for (const d of days!) expect(d.day >= cutoff).toBe(true);
+    // The 2025 day is outside the window, so it is not uploaded, though it still counts in the totals.
+    expect(JSON.stringify(agg.daysByTool)).not.toContain("2025-01-05");
+    expect(agg.all.firstUsed).toBe(at("2025-01-05T09:00:00Z"));
+  });
+
+  it("contains no free text: every string is a key, a day, a month, a tool key or a confidence", async () => {
+    const { toAggregates } = await import("../src");
+    const agg = toAggregates(data);
+    const strings: string[] = [];
+    JSON.stringify(agg, (_k, v) => (typeof v === "string" && strings.push(v), v));
+    for (const s of strings) expect(s).toMatch(/^(UTC|\d{4}-\d{2}(-\d{2})?|chatgpt|claude|claude_code|all|estimated|measured|manual|mixed)$/);
+  });
+});

@@ -1,4 +1,4 @@
-import type { CardData } from "@trackhour/core";
+import type { ProfileAggregates } from "@trackhour/core";
 
 /**
  * What a saved profile holds. AGGREGATES ONLY: per-tool stats and per-day
@@ -8,10 +8,7 @@ import type { CardData } from "@trackhour/core";
 export interface StoredProfile {
   /** Saved card design. Untrusted on read, always normalized by the renderer. */
   config: unknown;
-  aggregates: Pick<CardData, "timeZone" | "all" | "byTool" | "daysByTool"> & {
-    /** Epoch ms when these aggregates were last computed. */
-    updatedAt: number;
-  };
+  aggregates: ProfileAggregates;
 }
 
 export interface ProfileStore {

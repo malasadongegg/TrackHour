@@ -69,3 +69,17 @@ export interface CardData {
   byTool: Partial<Record<ToolKey, ToolStats>>;
   daysByTool: Partial<Record<ToolKey, DayBucket[]>>;
 }
+
+/**
+ * What a saved profile holds server-side. AGGREGATES ONLY: per-tool stats and
+ * per-day active minutes for the card's window. Mirrors the `aggregates` column
+ * in supabase/migrations/0001_profiles.sql.
+ */
+export interface ProfileAggregates {
+  timeZone: string;
+  /** Epoch ms when these were computed. Shown on the card as "Updated". */
+  updatedAt: number;
+  all: ToolStats;
+  byTool: Partial<Record<ToolKey, ToolStats>>;
+  daysByTool: Partial<Record<ToolKey, DayBucket[]>>;
+}

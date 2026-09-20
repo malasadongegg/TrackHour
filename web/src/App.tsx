@@ -30,12 +30,18 @@ import { addImport, deleteBatch, loadLibrary, requestPersistence, saveCard, save
 import { fmtInt } from "./lib/format";
 import { ALL_COLOR, TOOL_META } from "./lib/tools";
 import { readExport } from "./lib/zip";
+import { AccountPage } from "./pages/AccountPage";
 import { CardPage } from "./pages/CardPage";
+import { useAuth, type Auth } from "./lib/useAuth";
 
 type View = ToolKey | "all";
-type Page = "dashboard" | "card";
+type Page = "dashboard" | "card" | "account";
 
-const pageFromPath = (): Page => (window.location.pathname.replace(/\/+$/, "") === "/card" ? "card" : "dashboard");
+const PATHS: Record<Page, string> = { dashboard: "/", card: "/card", account: "/account" };
+const pageFromPath = (): Page => {
+  const path = window.location.pathname.replace(/\/+$/, "");
+  return path === "/card" ? "card" : path === "/account" ? "account" : "dashboard";
+};
 
 interface Pending {
   fileName: string;
@@ -57,12 +63,13 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState<View>("all");
+  const auth = useAuth();
   const [page, setPageState] = useState<Page>(pageFromPath);
   const saveTimer = useRef<number | undefined>(undefined);
 
   // Real path routes ("/" and "/card"), so links work and the SPA rewrite on the host matters.
   const setPage = useCallback((next: Page) => {
-    window.history.pushState(null, "", next === "card" ? "/card" : "/");
+    window.history.pushState(null, "", PATHS[next]);
     setPageState(next);
   }, []);
   useEffect(() => {
@@ -71,7 +78,7 @@ export function App() {
     return () => window.removeEventListener("popstate", onPop);
   }, []);
   useEffect(() => {
-    document.title = page === "card" ? "Card designer | TrackHour" : "TrackHour";
+    document.title = page === "card" ? "Card designer | TrackHour" : page === "account" ? "Account | TrackHour" : "TrackHour";
   }, [page]);
 
   const timeZone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC", []);
@@ -221,7 +228,7 @@ export function App() {
   const viewLabel = activeView === "all" ? "All tools" : TOOL_META[activeView].label;
 
   return (
-    <Shell nav={hasData ? <Tabs page={page} onChange={setPage} /> : null}>
+    <Shell nav={hasData ? <Tabs page={page} onChange={setPage} auth={auth} /> : null}>
       {report && (
         <Banner tone="ok" onClose={() => setReport(null)}>
           Imported <strong>{fmtInt(report.added)}</strong> new {TOOL_META[report.toolKey].label} conversations.{" "}
@@ -240,6 +247,8 @@ export function App() {
         <div className="py-10">
           <Dropzone onFile={handleFile} busy={busy} />
         </div>
+      ) : page === "account" ? (
+        <AccountPage auth={auth} sessions={derived.sessions} records={library.records} now={derived.now} timeZone={timeZone} card={library.card} />
       ) : page === "card" ? (
         <CardPage
           sessions={derived.sessions}
@@ -329,18 +338,18 @@ export function App() {
   );
 }
 
-function Tabs({ page, onChange }: { page: Page; onChange: (p: Page) => void }) {
+function Tabs({ page, onChange, auth }: { page: Page; onChange: (p: Page) => void; auth: Auth }) {
+  const tabs: Array<[Page, string]> = [
+    ["dashboard", "Dashboard"],
+    ["card", "Card"],
+    ...(auth.configured ? ([["account", "Account"]] as Array<[Page, string]>) : []),
+  ];
   return (
     <nav aria-label="Pages" className="flex gap-1 rounded-lg border border-line bg-panel p-1">
-      {(
-        [
-          ["dashboard", "Dashboard"],
-          ["card", "Card"],
-        ] as const
-      ).map(([key, label]) => (
+      {tabs.map(([key, label]) => (
         <a
           key={key}
-          href={key === "card" ? "/card" : "/"}
+          href={PATHS[key]}
           aria-current={page === key ? "page" : undefined}
           onClick={(e) => {
             // Let modified clicks (new tab) behave normally, handle plain clicks in-app.
