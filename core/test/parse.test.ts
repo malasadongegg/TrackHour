@@ -291,3 +291,21 @@ describe("parsing odd export shapes", () => {
     expect(ms).toBeLessThan(5000);
   });
 });
+
+describe("describeShape (error diagnostics)", () => {
+  it("names the fields but never includes any values", async () => {
+    const { describeShape } = await import("../src/parse");
+    const s = describeShape([{ id: "SECRET-VALUE", title: "SECRET TITLE", tags: ["x"] }, { id: 2 }]);
+    expect(s).toContain("a list of 2 items");
+    expect(s).toContain("id, title, tags");
+    expect(s).not.toContain("SECRET");
+  });
+
+  it("handles objects, empties and scalars", async () => {
+    const { describeShape } = await import("../src/parse");
+    expect(describeShape({ a: 1, b: "SECRET" })).toBe("an object with fields: a, b");
+    expect(describeShape([])).toBe("an empty list");
+    expect(describeShape("SECRET")).toBe("a string value");
+    expect(describeShape([1, 2])).toContain("not objects");
+  });
+});

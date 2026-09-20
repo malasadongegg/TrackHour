@@ -34,7 +34,10 @@ export async function readExport(file: File): Promise<unknown> {
   const entries = Object.values(zip.files)
     .filter((f) => !f.dir && !f.name.startsWith("__MACOSX/") && CONVERSATION_FILE.test(f.name))
     .sort((a, b) => a.name.localeCompare(b.name));
-  if (entries.length === 0) throw new Error("No conversations.json was found inside this ZIP.");
+  if (entries.length === 0) {
+    const names = Object.values(zip.files).filter((f) => !f.dir).map((f) => f.name.split("/").pop()).slice(0, 12);
+    throw new Error(`No conversations.json was found inside this ZIP. It contains: ${names.join(", ") || "no files"}.`);
+  }
 
   // Merge shards into one array. Plain loops, since spreading a huge array can overflow the stack.
   const merged: unknown[] = [];

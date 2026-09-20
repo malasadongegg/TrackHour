@@ -22,3 +22,24 @@ export function detectProvider(json: unknown): Extract<ToolKey, "chatgpt" | "cla
   }
   return null;
 }
+
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+
+/**
+ * A privacy-safe description of a JSON value's SHAPE for error messages:
+ * container kind, size, and FIELD NAMES only. Never any value, so it can be
+ * shown or shared without leaking content.
+ */
+export function describeShape(json: unknown): string {
+  const names = (o: Record<string, unknown>) => {
+    const keys = Object.keys(o);
+    return keys.length === 0 ? "no fields" : `fields: ${keys.slice(0, 12).join(", ")}${keys.length > 12 ? ", ..." : ""}`;
+  };
+  if (Array.isArray(json)) {
+    if (json.length === 0) return "an empty list";
+    const first = json.find(isRecord);
+    return first ? `a list of ${json.length} items; the first item has ${names(first)}` : `a list of ${json.length} items that are not objects`;
+  }
+  if (isRecord(json)) return `an object with ${names(json)}`;
+  return `a ${typeof json} value`;
+}

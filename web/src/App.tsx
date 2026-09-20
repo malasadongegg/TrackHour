@@ -9,6 +9,7 @@ import {
   dedupeRecords,
   monthlyHours,
   normalizeCardConfig,
+  describeShape,
   parseExport,
   sessionize,
   type CardConfig,
@@ -131,7 +132,9 @@ export function App() {
       const parsed = parseExport(json, batchId);
       if (!parsed) {
         throw new Error(
-          "This does not look like a ChatGPT or Claude export. I looked for conversations that contain a mapping (ChatGPT) or chat_messages (Claude) field.",
+          `This does not look like a ChatGPT or Claude conversations file. It is ${describeShape(json)}. ` +
+            "I look for conversations that contain a mapping (ChatGPT) or chat_messages (Claude) field. " +
+            "If your export has several files, use conversations.json.",
         );
       }
       if (parsed.records.length === 0) throw new Error("No usable conversations were found in this export.");

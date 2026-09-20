@@ -3,7 +3,7 @@ import { parseChatGPT } from "./chatgpt";
 import { parseClaude } from "./claude";
 import { detectProvider } from "./detect";
 
-export { detectProvider } from "./detect";
+export { detectProvider, describeShape } from "./detect";
 export { parseChatGPT } from "./chatgpt";
 export { parseClaude } from "./claude";
 
