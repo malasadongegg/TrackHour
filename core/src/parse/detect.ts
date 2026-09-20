@@ -43,3 +43,16 @@ export function describeShape(json: unknown): string {
   if (isRecord(json)) return `an object with ${names(json)}`;
   return `a ${typeof json} value`;
 }
+
+/**
+ * Claude's newer exports may arrive as a MANIFEST: a small JSON listing
+ * download links for several ZIPs (`data_files`), not the chats themselves.
+ * Returns the file name to download for conversations, or null if `json` is
+ * not such a manifest. The links are never fetched or stored.
+ */
+export function detectManifest(json: unknown): { conversationsFile: string | null } | null {
+  if (!isRecord(json) || !Array.isArray(json.data_files)) return null;
+  const entry = json.data_files.find((f) => isRecord(f) && f.category === "conversations");
+  const name = isRecord(entry) && typeof entry.filename === "string" ? entry.filename : null;
+  return { conversationsFile: name };
+}

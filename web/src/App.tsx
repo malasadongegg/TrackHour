@@ -10,6 +10,7 @@ import {
   monthlyHours,
   normalizeCardConfig,
   describeShape,
+  detectManifest,
   parseExport,
   sessionize,
   type CardConfig,
@@ -131,6 +132,12 @@ export function App() {
       const batchId = crypto.randomUUID();
       const parsed = parseExport(json, batchId);
       if (!parsed) {
+        const manifest = detectManifest(json);
+        if (manifest) {
+          throw new Error(
+            `This is your export manifest, a list of download links, not your chats. Download ${manifest.conversationsFile ?? "the file whose category is conversations"} from its export_url and drop that ZIP here instead.`,
+          );
+        }
         throw new Error(
           `This does not look like a ChatGPT or Claude conversations file. It is ${describeShape(json)}. ` +
             "I look for conversations that contain a mapping (ChatGPT) or chat_messages (Claude) field. " +

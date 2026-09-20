@@ -309,3 +309,18 @@ describe("describeShape (error diagnostics)", () => {
     expect(describeShape([1, 2])).toContain("not objects");
   });
 });
+
+describe("detectManifest", () => {
+  it("recognizes Claude's export manifest and names the conversations file", async () => {
+    const { detectManifest } = await import("../src/parse");
+    const manifest = { total_files: 2, data_files: [{ category: "projects", filename: "projects-000.zip" }, { category: "conversations", filename: "conversations-000.zip" }] };
+    expect(detectManifest(manifest)).toEqual({ conversationsFile: "conversations-000.zip" });
+    expect(detectManifest({ data_files: [] })).toEqual({ conversationsFile: null });
+  });
+
+  it("ignores everything else", async () => {
+    const { detectManifest } = await import("../src/parse");
+    expect(detectManifest([claudeConversation()])).toBeNull();
+    expect(detectManifest(null)).toBeNull();
+  });
+});
