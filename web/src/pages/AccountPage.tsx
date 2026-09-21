@@ -23,7 +23,11 @@ interface Saved {
   slug: string;
   is_public: boolean;
   updated_at: string;
+  card_config: unknown;
 }
+
+/** Deep-equal enough for a config object: same normalized shape serializes the same. */
+const sameConfig = (a: CardConfig, b: unknown) => JSON.stringify(normalizeCardConfig(a)) === JSON.stringify(normalizeCardConfig(b));
 
 const SLUG = /^[a-z0-9_-]{3,40}$/;
 
@@ -42,6 +46,9 @@ export function AccountPage({ auth, sessions, records, now, timeZone, card }: Pr
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  // Bumped after every successful save, appended to the preview <img> only, so it reloads
+  // immediately instead of showing the browser's cached (now stale) copy of the same URL.
+  const [previewNonce, setPreviewNonce] = useState(0);
 
   // The exact payload that would be uploaded. Computed in the browser and shown before saving.
   const aggregates = useMemo(
@@ -56,7 +63,7 @@ export function AccountPage({ auth, sessions, records, now, timeZone, card }: Pr
     let active = true;
     void client
       .from("profiles")
-      .select("slug,is_public,updated_at")
+      .select("slug,is_public,updated_at,card_config")
       .maybeSingle()
       .then(({ data, error }) => {
         if (!active) return;
@@ -103,7 +110,11 @@ export function AccountPage({ auth, sessions, records, now, timeZone, card }: Pr
   }
 
   const cardUrl = saved ? `${window.location.origin}/api/card?u=${saved.slug}` : "";
+  const previewUrl = saved ? `${cardUrl}&t=${previewNonce}` : "";
   const snippet = `![My AI playtime](${cardUrl})`;
+  // True once you've changed the design or your stats since the last publish, so the
+  // live card no longer matches what you're looking at in the designer.
+  const designChanged = saved !== null && !sameConfig(card, saved.card_config);
 
   async function save() {
     const client = supabase();
@@ -129,7 +140,8 @@ export function AccountPage({ auth, sessions, records, now, timeZone, card }: Pr
       return;
     }
     setSaved(data as Saved);
-    setMessage({ tone: "ok", text: "Saved. Your card link is ready." });
+    setPreviewNonce((n) => n + 1);
+    setMessage({ tone: "ok", text: "Saved. Your card link is up to date." });
   }
 
   async function remove() {
@@ -178,7 +190,9 @@ export function AccountPage({ auth, sessions, records, now, timeZone, card }: Pr
             type="button"
             disabled={busy || !loaded}
             onClick={() => void save()}
-            className="rounded bg-accent px-4 py-2 text-sm font-semibold text-bg hover:brightness-110 disabled:opacity-50"
+            className={`rounded px-4 py-2 text-sm font-semibold text-bg hover:brightness-110 disabled:opacity-50 ${
+              designChanged ? "bg-warn" : "bg-accent"
+            }`}
           >
             {busy ? "Saving..." : saved ? "Update saved totals" : "Save my totals"}
           </button>
@@ -188,6 +202,12 @@ export function AccountPage({ auth, sessions, records, now, timeZone, card }: Pr
             </button>
           )}
         </div>
+        {!message && designChanged && (
+          <p role="status" className="text-sm text-warn">
+            Your card design changed since you last published. Press Update saved totals to make the link match what you see on the Card
+            tab.
+          </p>
+        )}
         {message && (
           <p role={message.tone === "error" ? "alert" : "status"} className={`text-sm ${message.tone === "error" ? "text-danger" : "text-accent"}`}>
             {message.text}
@@ -196,8 +216,11 @@ export function AccountPage({ auth, sessions, records, now, timeZone, card }: Pr
 
         {saved && (
           <div className="space-y-2 border-t border-line/60 pt-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Embed</p>
-            <img src={cardUrl} alt="Your hosted card" className="h-auto max-w-full rounded" width={495} />
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Embed</p>
+              {designChanged && <span className="text-xs text-warn">Not yet published</span>}
+            </div>
+            <img src={previewUrl} alt="Your hosted card" className="h-auto max-w-full rounded" width={495} />
             <code className="block break-all rounded bg-bg p-2 text-xs text-ink">{snippet}</code>
             <button
               type="button"
@@ -209,7 +232,10 @@ export function AccountPage({ auth, sessions, records, now, timeZone, card }: Pr
             >
               {copied ? "Copied" : "Copy Markdown"}
             </button>
-            <p className="text-xs text-muted">After you import new data, press Update saved totals so the link shows it.</p>
+            <p className="text-xs text-muted">
+              The link only updates when you press Update saved totals. Changing the design on the Card tab or importing new data does not
+              publish by itself.
+            </p>
           </div>
         )}
       </section>
