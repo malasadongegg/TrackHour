@@ -31,6 +31,9 @@ const sameConfig = (a: CardConfig, b: unknown) => JSON.stringify(normalizeCardCo
 
 const SLUG = /^[a-z0-9_-]{3,40}$/;
 
+/** No request to the server may leave the form stuck forever. */
+const REQUEST_TIMEOUT_MS = 15_000;
+
 /** A default handle from the GitHub username, cleaned to the allowed pattern. */
 function suggestSlug(name: unknown): string {
   const s = String(name ?? "").toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 40);
@@ -49,6 +52,9 @@ export function AccountPage({ auth, sessions, records, now, timeZone, card }: Pr
   // Bumped after every successful save, appended to the preview <img> only, so it reloads
   // immediately instead of showing the browser's cached (now stale) copy of the same URL.
   const [previewNonce, setPreviewNonce] = useState(0);
+  // A browser with nothing imported (a new device, cleared storage) has no totals to upload. Saving from there must
+  // never replace the totals already on the server with an empty set.
+  const hasLocalData = sessions.length > 0 || records.length > 0;
 
   // The exact payload that would be uploaded. Computed in the browser and shown before saving.
   // card.tools is a fresh array every render (normalizeCardConfig always rebuilds it), so this
@@ -65,13 +71,18 @@ export function AccountPage({ auth, sessions, records, now, timeZone, card }: Pr
     const client = supabase();
     if (!client || !user) return;
     let active = true;
+    // Filtered to this user on purpose. The database also lets everyone read every PUBLIC profile, so
+    // without the filter this returns several rows as soon as a second person shares a card, and
+    // maybeSingle() then fails with "multiple rows" and the user's own profile appears to be missing.
     void client
       .from("profiles")
       .select("slug,is_public,updated_at,card_config")
+      .eq("user_id", user.id)
+      .abortSignal(AbortSignal.timeout(REQUEST_TIMEOUT_MS))
       .maybeSingle()
       .then(({ data, error }) => {
         if (!active) return;
-        if (error) setMessage({ tone: "error", text: "Could not load your profile." });
+        if (error) setMessage({ tone: "error", text: "Could not load your profile. Check your connection and reload the page." });
         const row = data as Saved | null;
         setSaved(row);
         setSlug(row?.slug ?? suggestSlug(user.user_metadata?.user_name ?? user.user_metadata?.preferred_username));
@@ -102,6 +113,11 @@ export function AccountPage({ auth, sessions, records, now, timeZone, card }: Pr
         <p className="rounded border border-line bg-bg p-3 text-sm text-muted">
           Only totals, dates and daily minutes are uploaded. Your chats, titles and files never leave your device, and you can see the exact data before you save.
         </p>
+        {auth.error && (
+          <p role="alert" className="text-sm text-danger">
+            {auth.error}
+          </p>
+        )}
         <button
           type="button"
           onClick={() => void auth.signInWithGitHub()}
@@ -118,7 +134,7 @@ export function AccountPage({ auth, sessions, records, now, timeZone, card }: Pr
   const snippet = `![My AI playtime](${cardUrl})`;
   // True once you've changed the design or your stats since the last publish, so the
   // live card no longer matches what you're looking at in the designer.
-  const designChanged = saved !== null && !sameConfig(card, saved.card_config);
+  const designChanged = hasLocalData && saved !== null && !sameConfig(card, saved.card_config);
 
   async function save() {
     const client = supabase();
@@ -130,17 +146,19 @@ export function AccountPage({ auth, sessions, records, now, timeZone, card }: Pr
     }
     setBusy(true);
     setMessage(null);
+    // With no local data only the name and visibility are sent; the saved totals and design are left untouched.
+    const row: Record<string, unknown> = hasLocalData
+      ? { user_id: user.id, slug: clean, is_public: isPublic, card_config: normalizeCardConfig(card), aggregates }
+      : { user_id: user.id, slug: clean, is_public: isPublic };
     const { data, error } = await client
       .from("profiles")
-      .upsert(
-        { user_id: user.id, slug: clean, is_public: isPublic, card_config: normalizeCardConfig(card), aggregates },
-        { onConflict: "user_id" },
-      )
+      .upsert(row, { onConflict: "user_id" })
       .select("slug,is_public,updated_at,card_config")
+      .abortSignal(AbortSignal.timeout(REQUEST_TIMEOUT_MS))
       .single();
     setBusy(false);
     if (error) {
-      setMessage({ tone: "error", text: error.code === "23505" ? "That name is taken. Try another." : "Could not save. Please try again." });
+      setMessage({ tone: "error", text: error.code === "23505" ? "That name is taken. Try another." : "Could not save. Check your connection and try again." });
       return;
     }
     setSaved(data as Saved);
@@ -152,7 +170,7 @@ export function AccountPage({ auth, sessions, records, now, timeZone, card }: Pr
     const client = supabase();
     if (!client || !saved || !user) return;
     if (!window.confirm("Delete your saved profile from the server? Your local data stays on this device.")) return;
-    const { error } = await client.from("profiles").delete().eq("user_id", user.id);
+    const { error } = await client.from("profiles").delete().eq("user_id", user.id).abortSignal(AbortSignal.timeout(REQUEST_TIMEOUT_MS));
     if (error) {
       setMessage({ tone: "error", text: "Could not delete. Please try again." });
       return;
@@ -192,7 +210,7 @@ export function AccountPage({ auth, sessions, records, now, timeZone, card }: Pr
         <div className="flex flex-wrap gap-3">
           <button
             type="button"
-            disabled={busy || !loaded}
+            disabled={busy || !loaded || (!saved && !hasLocalData)}
             onClick={() => void save()}
             className={`rounded px-4 py-2 text-sm font-semibold text-bg hover:brightness-110 disabled:opacity-50 ${
               designChanged ? "bg-warn" : "bg-accent"
@@ -206,6 +224,13 @@ export function AccountPage({ auth, sessions, records, now, timeZone, card }: Pr
             </button>
           )}
         </div>
+        {!hasLocalData && (
+          <p role="status" className="text-sm text-muted">
+            {saved
+              ? "No data is imported in this browser, so your saved totals will not change. You can still change your card name and whether it is public."
+              : "Import your data on the dashboard first, then come back here to save your totals."}
+          </p>
+        )}
         {!message && designChanged && (
           <p role="status" className="text-sm text-warn">
             Your card design changed since you last published. Press Update saved totals to make the link match what you see on the Card
@@ -229,7 +254,7 @@ export function AccountPage({ auth, sessions, records, now, timeZone, card }: Pr
             <button
               type="button"
               onClick={() => {
-                void navigator.clipboard.writeText(snippet).then(() => setCopied(true));
+                void navigator.clipboard.writeText(snippet).then(() => setCopied(true), () => setCopied(false));
                 window.setTimeout(() => setCopied(false), 2000);
               }}
               className="text-sm text-accent hover:underline"
@@ -249,6 +274,7 @@ export function AccountPage({ auth, sessions, records, now, timeZone, card }: Pr
         <p className="text-sm text-muted">
           This is the complete payload, computed in your browser. It has your card design, totals per tool, and daily minutes for the last 30 weeks. No messages, no titles, no per-message timestamps.
         </p>
+        {!hasLocalData && <p className="text-sm text-muted">Nothing would be uploaded except your card name and visibility, because no data is imported here.</p>}
         <details className="rounded border border-line bg-bg">
           <summary className="cursor-pointer px-3 py-2 text-sm text-ink">Show the data ({(new Blob([payload]).size / 1024).toFixed(1)} KB)</summary>
           <pre className="max-h-96 overflow-auto px-3 pb-3 text-xs text-muted">{payload}</pre>

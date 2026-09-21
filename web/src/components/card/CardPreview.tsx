@@ -80,7 +80,7 @@ export function CardPreview({ svg }: Props) {
         </div>
       </div>
       <p className="text-xs text-muted">
-        Drop the file in a README, Notion page or your site with an image tag. A hosted link that updates itself comes in a later phase.
+        Drop the file in a README, Notion page or your site with an image tag. For a link that updates itself, sign in on the Account tab.
       </p>
     </div>
   );

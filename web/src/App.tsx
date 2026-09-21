@@ -10,6 +10,7 @@ import {
   dedupeRecords,
   isClaudeCodeLog,
   isExtensionLog,
+  isSaneSpan,
   monthlyHours,
   normalizeCardConfig,
   describeShape,
@@ -52,17 +53,25 @@ import { fmtInt } from "./lib/format";
 import { ALL_COLOR, TOOL_META } from "./lib/tools";
 import { readExport } from "./lib/zip";
 import { AccountPage } from "./pages/AccountPage";
+import { NotFoundPage } from "./pages/NotFoundPage";
+import { PrivacyPage } from "./pages/PrivacyPage";
 import { CardPage } from "./pages/CardPage";
 import { useAuth, type Auth } from "./lib/useAuth";
 
 type View = ToolKey | "all";
-type Page = "dashboard" | "card" | "account";
+type Page = "dashboard" | "card" | "account" | "privacy" | "notfound";
+type NavPage = Exclude<Page, "notfound">;
 
-const PATHS: Record<Page, string> = { dashboard: "/", card: "/card", account: "/account" };
-const pageFromPath = (): Page => {
-  const path = window.location.pathname.replace(/\/+$/, "");
-  return path === "/card" ? "card" : path === "/account" ? "account" : "dashboard";
-};
+const PATHS: Record<NavPage, string> = { dashboard: "/", card: "/card", account: "/account", privacy: "/privacy" };
+// The host serves this app for every address, so an address that is not one of these has to be shown as not found here.
+const ROUTES = new Map<string, NavPage>([
+  ["", "dashboard"],
+  ["/index.html", "dashboard"],
+  ["/card", "card"],
+  ["/account", "account"],
+  ["/privacy", "privacy"],
+]);
+const pageFromPath = (): Page => ROUTES.get(window.location.pathname.replace(/\/+$/, "")) ?? "notfound";
 
 interface Pending {
   fileName: string;
@@ -87,7 +96,7 @@ export function App() {
   const saveTimer = useRef<number | undefined>(undefined);
 
   // Real path routes ("/" and "/card"), so links work and the SPA rewrite on the host matters.
-  const setPage = useCallback((next: Page) => {
+  const setPage = useCallback((next: NavPage) => {
     window.history.pushState(null, "", PATHS[next]);
     setPageState(next);
   }, []);
@@ -97,7 +106,8 @@ export function App() {
     return () => window.removeEventListener("popstate", onPop);
   }, []);
   useEffect(() => {
-    document.title = page === "card" ? "Card designer | TrackHour" : page === "account" ? "Account | TrackHour" : "TrackHour";
+    document.title =
+      page === "card" ? "Card designer | TrackHour" : page === "account" ? "Account | TrackHour" : page === "privacy" ? "Privacy | TrackHour" : page === "notfound" ? "Not found | TrackHour" : "TrackHour";
   }, [page]);
 
   const timeZone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC", []);
@@ -161,14 +171,15 @@ export function App() {
     const now = Date.now();
     const ctx = { now, timeZone };
     const estimated = TOOL_KEYS.flatMap((k) => sessionize(records, k, options));
+    // Stored sessions are re-checked every time they are read. One with impossible dates (saved by an older
+    // version, or a bad file) would otherwise make every chart loop for millions of days and freeze the app.
+    const stored = measuredSessions.filter((s) => isSaneSpan(s.startedAt, s.endedAt, now));
     // Measured (Claude Code hook, later a browser extension) wins over an estimate for the time it covers.
     const sessions = combineSessions(
-      [...estimated, ...measuredSessions.filter((s) => s.confidence === "estimated")],
-      measuredSessions.filter((s) => s.confidence !== "estimated"),
+      [...estimated, ...stored.filter((s) => s.confidence === "estimated")],
+      stored.filter((s) => s.confidence !== "estimated"),
     );
-    const toolsWithData = TOOL_KEYS.filter(
-      (k) => records.some((r) => r.toolKey === k) || measuredSessions.some((s) => s.toolKey === k),
-    );
+    const toolsWithData = TOOL_KEYS.filter((k) => records.some((r) => r.toolKey === k) || stored.some((s) => s.toolKey === k));
     // One entry per registered tool, so adding a tool to the registry needs no change here.
     const perTool = Object.fromEntries(TOOL_KEYS.map((k) => [k, computeStats(sessions, records, ctx, k)])) as Record<ToolKey, ToolStats>;
     const stats = { all: computeStats(sessions, records, ctx, "all"), ...perTool };
@@ -324,7 +335,10 @@ export function App() {
   const viewLabel = activeView === "all" ? "All tools" : TOOL_META[activeView].label;
 
   return (
-    <Shell nav={hasData ? <Tabs page={page} onChange={setPage} auth={auth} /> : null}>
+    <Shell
+      nav={hasData || page === "account" || page === "privacy" || page === "notfound" ? <Tabs page={page} onChange={setPage} auth={auth} /> : null}
+      onPrivacy={() => setPage("privacy")}
+    >
       {report && report.kind === "import" && (
         <Banner tone="ok" onClose={() => setReport(null)}>
           {TOOL_META[report.toolKey].label}: <strong>{fmtInt(report.added)}</strong> new and <strong>{fmtInt(report.updated)}</strong> updated
@@ -345,12 +359,17 @@ export function App() {
         </Banner>
       )}
 
-      {!hasData ? (
+      {page === "privacy" ? (
+        <PrivacyPage />
+      ) : page === "notfound" ? (
+        <NotFoundPage onHome={() => setPage("dashboard")} />
+      ) : page === "account" ? (
+        // Not gated on having imported data: someone signing in on a new device must still reach their profile, and delete it.
+        <AccountPage auth={auth} sessions={derived.sessions} records={library.records} now={derived.now} timeZone={timeZone} card={library.card} />
+      ) : !hasData ? (
         <div className="py-10">
           <Dropzone onFile={handleFile} busy={busy} />
         </div>
-      ) : page === "account" ? (
-        <AccountPage auth={auth} sessions={derived.sessions} records={library.records} now={derived.now} timeZone={timeZone} card={library.card} />
       ) : page === "card" ? (
         <CardPage
           sessions={derived.sessions}
@@ -442,11 +461,11 @@ export function App() {
   );
 }
 
-function Tabs({ page, onChange, auth }: { page: Page; onChange: (p: Page) => void; auth: Auth }) {
-  const tabs: Array<[Page, string]> = [
+function Tabs({ page, onChange, auth }: { page: Page; onChange: (p: NavPage) => void; auth: Auth }) {
+  const tabs: Array<[NavPage, string]> = [
     ["dashboard", "Dashboard"],
     ["card", "Card"],
-    ...(auth.configured ? ([["account", "Account"]] as Array<[Page, string]>) : []),
+    ...(auth.configured ? ([["account", "Account"]] as Array<[NavPage, string]>) : []),
   ];
   return (
     <nav aria-label="Pages" className="flex gap-1 rounded-lg border border-line bg-panel p-1">
@@ -470,7 +489,7 @@ function Tabs({ page, onChange, auth }: { page: Page; onChange: (p: Page) => voi
   );
 }
 
-function Shell({ children, nav }: { children: React.ReactNode; nav?: React.ReactNode }) {
+function Shell({ children, nav, onPrivacy }: { children: React.ReactNode; nav?: React.ReactNode; onPrivacy?: () => void }) {
   return (
     <div className="mx-auto min-h-screen max-w-5xl px-4 pb-20 sm:px-6">
       <header className="flex flex-wrap items-center justify-between gap-3 py-6">
@@ -485,6 +504,25 @@ function Shell({ children, nav }: { children: React.ReactNode; nav?: React.React
         <span className="hidden text-xs text-muted lg:block">Your chats never leave your device.</span>
       </header>
       <main className="space-y-6">{children}</main>
+      <footer className="mt-16 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-line/60 pt-5 text-xs text-muted">
+        <a
+          href="/privacy"
+          onClick={(e) => {
+            if (!onPrivacy || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+            e.preventDefault();
+            onPrivacy();
+          }}
+          className="hover:text-ink"
+        >
+          Privacy
+        </a>
+        <a href="https://github.com/malasadongegg/TrackHour" target="_blank" rel="noreferrer noopener" className="hover:text-ink">
+          Source code
+        </a>
+        <a href="https://github.com/malasadongegg/TrackHour/issues" target="_blank" rel="noreferrer noopener" className="hover:text-ink">
+          Report a problem
+        </a>
+      </footer>
     </div>
   );
 }

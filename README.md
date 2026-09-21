@@ -100,6 +100,16 @@ No environment variables are needed to run the app. Accounts are optional; see [
 
 Without the variables it is a plain static site. [`web/vercel.json`](web/vercel.json) rewrites app routes (such as `/card` and `/account`) to `index.html`, leaves `/api` to the function, and sets the security headers described above. If the install step cannot see the workspace, set the Install Command to `cd .. && pnpm install --frozen-lockfile`.
 
+### Before you launch publicly
+
+Some protections live in dashboards, not in this repo:
+
+1. **Turn off email sign-up in Supabase** (Authentication, Providers, Email). The app only offers GitHub, but the Supabase sign-up API is public, so leaving Email on lets anyone create throwaway accounts and trigger confirmation emails from your project.
+2. **Add a rate limit for `/api/card` in Vercel** (Firewall, custom rule). The in-code limiter is per server instance, so under load it does not hold; a platform rule does. The card lookup is cached for a few seconds per profile, which protects Supabase, but every request still runs a function.
+3. **Decide whether the site should be searchable.** `web/index.html` sets `noindex`; remove it if you want the site to appear in search results.
+
+Known limits: card numbers are self-reported and can be edited by their owner, so do not present them as verified. Public cards expose the owner's internal account id in the database record.
+
 ### Why `core` and `card` are compiled, not run as source
 
 `web/api/card.ts` runs as a real Vercel Node.js function, not through Vite. Node's own module loader executes it, and Node cannot run `.ts` files directly. So `core` and `card` each have a `build` script (`tsc -p tsconfig.build.json`) that compiles them to plain CommonJS in `dist/`, and their `package.json` points there. `pnpm build`, `pnpm test`, `pnpm typecheck` and `pnpm dev` all run `pnpm build:libs` first for this reason. If you add a new export to either package, `pnpm build:libs` (or any of those commands) picks it up automatically; you don't need to touch this by hand.
