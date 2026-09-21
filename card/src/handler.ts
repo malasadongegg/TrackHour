@@ -55,8 +55,14 @@ const SVG_HEADERS = {
   "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'",
 } as const;
 
-/** Edge and browser caching: fresh for 5 minutes, served stale for a day while revalidating. */
-const CACHE_OK = "public, max-age=300, s-maxage=900, stale-while-revalidate=86400";
+/**
+ * Edge and browser caching. Short on purpose: this is a personal-scale
+ * endpoint (one profile per viewer, no viral traffic to protect against yet),
+ * so freshness after clicking "Update saved totals" matters more than saving
+ * an occasional database read. 30s fresh, up to 5 minutes stale while a
+ * background refresh happens. Raise this later if traffic ever justifies it.
+ */
+const CACHE_OK = "public, max-age=30, s-maxage=30, stale-while-revalidate=300";
 const CACHE_ERROR = "public, max-age=60";
 
 /** A small, fixed SVG for errors. Contains no user input. */
