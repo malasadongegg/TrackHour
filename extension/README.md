@@ -33,7 +33,7 @@ Known limits, so you can judge the numbers:
 
 ## How it reaches the web app
 
-`src/content-bridge.js` is injected only on the TrackHour site. When the app loads (and whenever its tab comes back into view) it posts a message to its own window asking for the log. The bridge answers with the finished sessions, and the app imports the new ones into your browser storage. A session is identified by its start time, so nothing is ever imported twice. Where the extension measured a stretch of time, that measurement replaces any imported estimate for exactly that stretch (see `combineSessions` in `core/src/sessionize.ts`).
+`src/content-bridge.js` is injected only on the TrackHour site. When the app loads, whenever its tab comes back into view, and once a minute while it is open, it posts a message to its own window asking for the log. The bridge answers with the finished sessions, and the app imports the new ones into your browser storage. A session is identified by its start time, so nothing is ever imported twice. Where the extension measured a stretch of time, that measurement replaces any imported estimate for exactly that stretch (see `combineSessions` in `core/src/sessionize.ts`).
 
 ## Files
 

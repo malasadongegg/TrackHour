@@ -142,9 +142,12 @@ export function App() {
       if (document.visibilityState === "visible") void pull();
     };
     document.addEventListener("visibilitychange", onVisible);
+    // A session only reaches the app once it has finished, so keep checking while this tab is open.
+    const timer = window.setInterval(onVisible, 60_000);
     return () => {
       cancelled = true;
       document.removeEventListener("visibilitychange", onVisible);
+      window.clearInterval(timer);
     };
   }, [libraryReady, reload]);
 
