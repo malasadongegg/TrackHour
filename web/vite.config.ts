@@ -58,5 +58,14 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   return {
     plugins: [react(), tailwindcss(), localCardApi(env)],
+    optimizeDeps: {
+      // @trackhour/core is a pnpm workspace symlink, so Vite treats it as local
+      // source and skips its usual CJS-to-ESM pre-bundling for it. Its build
+      // output IS CommonJS (see core/tsconfig.build.json for why), so without
+      // this it gets served to the browser as raw, un-interop'd CJS, and every
+      // named import from it fails ("does not provide an export named ...").
+      // Forcing it into the normal dependency pipeline fixes that.
+      include: ["@trackhour/core"],
+    },
   };
 });
