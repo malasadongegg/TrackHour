@@ -25,6 +25,7 @@ import {
   type Session,
   type SessionizeOptions,
   type ToolKey,
+  type ToolStats,
 } from "@trackhour/core";
 import { DataManager } from "./components/DataManager";
 import { Dropzone } from "./components/Dropzone";
@@ -168,12 +169,9 @@ export function App() {
     const toolsWithData = TOOL_KEYS.filter(
       (k) => records.some((r) => r.toolKey === k) || measuredSessions.some((s) => s.toolKey === k),
     );
-    const stats = {
-      all: computeStats(sessions, records, ctx, "all"),
-      chatgpt: computeStats(sessions, records, ctx, "chatgpt"),
-      claude: computeStats(sessions, records, ctx, "claude"),
-      claude_code: computeStats(sessions, records, ctx, "claude_code"),
-    };
+    // One entry per registered tool, so adding a tool to the registry needs no change here.
+    const perTool = Object.fromEntries(TOOL_KEYS.map((k) => [k, computeStats(sessions, records, ctx, k)])) as Record<ToolKey, ToolStats>;
+    const stats = { all: computeStats(sessions, records, ctx, "all"), ...perTool };
     return { sessions, toolsWithData, stats, now, today: dayKey(now, timeZone) };
   }, [records, options, measuredSessions, timeZone]);
 

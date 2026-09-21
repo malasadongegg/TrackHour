@@ -1,25 +1,25 @@
 /**
  * Parses the browser extension's session log into Session objects.
  *
- * The extension measures real active time on claude.ai and chatgpt.com, so
- * these are not estimated from message times: they come out with
+ * The extension measures real active time on the AI web apps listed in
+ * TOOL_HOSTS (tools.ts), so these are not estimated from message times: they come out with
  * `confidence: "measured"` and `source: "extension"`, ready to use directly.
  * The extension never reads message text, so a session carries no message count.
  *
  * Expected shape (built by extension/src/sessions.js):
  *   { source: "trackhour-extension", version: 1, sessions: [...] }
  *
- * Nothing in an entry is trusted beyond its numbers: tool must be chatgpt or
- * claude, times must be sane, and activeSeconds is recomputed from the times so
+ * Nothing in an entry is trusted beyond its numbers: the tool must be one the
+ * extension can measure (BROWSER_TOOL_KEYS), times must be sane, and activeSeconds is recomputed from the times so
  * that endedAt - startedAt always equals it (day bucketing relies on that).
  */
+import { BROWSER_TOOL_KEYS } from "../tools";
 import type { Session, ToolKey } from "../types";
 import type { ParsedMeasuredSessions } from "./claudeCode";
 import { isObj } from "./util";
 
 const isFiniteNumber = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 
-const EXTENSION_TOOLS: readonly ToolKey[] = ["chatgpt", "claude"];
 /** A single extension session longer than this is not credible (a runaway tab); it is skipped rather than counted. */
 const MAX_SESSION_MS = 24 * 3_600_000;
 
@@ -36,7 +36,7 @@ export function parseExtensionLog(json: unknown): ParsedMeasuredSessions {
   for (const item of raw) {
     if (
       !isObj(item) ||
-      !EXTENSION_TOOLS.includes(item.toolKey as ToolKey) ||
+      !BROWSER_TOOL_KEYS.includes(item.toolKey as ToolKey) ||
       !isFiniteNumber(item.startedAt) ||
       !isFiniteNumber(item.endedAt) ||
       item.endedAt <= item.startedAt ||

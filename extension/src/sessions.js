@@ -17,12 +17,12 @@
  *
  * KEEP IN SYNC with core/src/parse/extension.ts, which reads what toLog() writes.
  */
+import { TOOL_KEYS } from "./tools.js";
 
 /** Must match the page script's beat interval (content-tracker.js). */
 export const BEAT_MS = 10_000;
 /** Three missed beats. Long enough to survive a busy page, short enough that a real pause splits the session. */
 export const JOIN_GAP_MS = 30_000;
-export const TOOLS = ["claude", "chatgpt"];
 
 export function emptyState() {
   return { paused: false, open: {}, sessions: [] };
@@ -55,7 +55,7 @@ function closeOpen(state, tool) {
  * the user's last real input was. Mutates and returns `state`.
  */
 export function addBeat(state, tool, t, idleMs = 0) {
-  if (state.paused || !TOOLS.includes(tool) || !Number.isFinite(t)) return state;
+  if (state.paused || !TOOL_KEYS.includes(tool) || !Number.isFinite(t)) return state;
   const input = t - (Number.isFinite(idleMs) && idleMs > 0 ? idleMs : 0);
   const open = state.open[tool];
   if (open && t >= open.last && t - open.last <= JOIN_GAP_MS) {
@@ -84,7 +84,7 @@ export function toLog(state) {
 
 /** Active seconds per tool since `sinceMs`, counting the session in progress too. For the popup. */
 export function activeSecondsSince(state, sinceMs) {
-  const out = { claude: 0, chatgpt: 0 };
+  const out = Object.fromEntries(TOOL_KEYS.map((k) => [k, 0]));
   const add = (tool, start, end) => {
     const from = Math.max(start, sinceMs);
     if (end > from && tool in out) out[tool] += (end - from) / 1000;

@@ -1,10 +1,10 @@
 # extension/
 
-An opt-in Chrome extension (Manifest V3) that **measures** how long you are actively using claude.ai and chatgpt.com, so those hours are measured instead of estimated from an export. It works in Chrome, Edge, Brave and other Chromium browsers. Its sessions are `source: "extension"` with `confidence: "measured"`.
+An opt-in Chrome extension (Manifest V3) that **measures** how long you are actively using AI chat apps in the browser, so those hours are measured instead of estimated from an export. It tracks: ChatGPT (chatgpt.com), Claude (claude.ai), Gemini (gemini.google.com), Perplexity (perplexity.ai), Copilot (copilot.microsoft.com), Grok (grok.com) and DeepSeek (chat.deepseek.com). It works in Chrome, Edge, Brave and other Chromium browsers. Its sessions are `source: "extension"` with `confidence: "measured"`.
 
 ## Privacy
 
-- It never reads the page. No message text, titles, URLs or page content. The page script only notes *that* an input event happened (never which key or where) and sends the tool name (`claude` or `chatgpt`).
+- It never reads the page. No message text, titles, URLs or page content. The page script only notes *that* an input event happened (never which key or where) and sends how long ago the last one was. Which tool a page is comes from the page's real address, worked out by the extension's background worker, not from anything the page says.
 - Everything is stored in `chrome.storage.local` on your computer. There is **no network code** in this extension, and it requests only the `storage` permission.
 - Data leaves the extension in exactly two ways, both started by you: the popup's **Export file** button, or opening the TrackHour site, which asks the extension for its sessions (see below).
 - The popup can pause tracking and delete everything the extension has stored.
@@ -13,7 +13,7 @@ An opt-in Chrome extension (Manifest V3) that **measures** how long you are acti
 
 1. Open `chrome://extensions` and turn on **Developer mode**.
 2. Click **Load unpacked** and choose this `extension/` folder.
-3. Use claude.ai or chatgpt.com as usual. Click the TrackHour toolbar icon to see today's time.
+3. Use any of the sites above as usual. Click the TrackHour toolbar icon to see today's time.
 4. Open the TrackHour site. New sessions import automatically, with a banner saying so.
 
 The extension talks to the TrackHour site at `https://trackhour-seven.vercel.app` and `http://localhost:5173` (see `matches` in `manifest.json`). If you deploy your own copy, add its address there.
@@ -37,13 +37,22 @@ Known limits, so you can judge the numbers:
 
 ## Files
 
-- `src/content-tracker.js` runs on claude.ai and chatgpt.com and sends heartbeats.
+- `src/tools.js` the list of supported sites and the address-to-tool lookup.
+- `src/content-tracker.js` runs on those sites and sends heartbeats.
 - `src/sessions.js` turns heartbeats into sessions. Pure functions, unit tested.
 - `src/background.js` service worker: the only code that writes stored data.
 - `src/content-bridge.js` runs on the TrackHour site only.
 - `src/popup.*` the toolbar popup.
 
-Tests: `node --test extension/test/sessions.test.mjs` (also run by `pnpm test`).
+Tests: `node --test extension/test/sessions.test.mjs extension/test/tools.test.mjs` (also run by `pnpm test`).
+
+## Adding another AI site
+
+1. Add its key to `TOOL_KEYS` in `core/src/types.ts`, and its label, color and hostnames in `core/src/tools.ts`.
+2. Add it to `src/tools.js`.
+3. Add `https://<host>/*` to the tracker script's `matches` in `manifest.json`.
+
+`extension/test/tools.test.mjs` fails if any of these disagree, so a missed step is caught. Everything else (dashboard, charts, card designer, data list) reads the registry and needs no change. Chrome asks users to re-approve an extension when an update adds sites, so batch new sites into one release.
 
 ## Discord Rich Presence
 

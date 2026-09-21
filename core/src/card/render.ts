@@ -196,7 +196,12 @@ function drawCompact(body: string[], c: Ctx, title: string): number {
   // Summary line: the split by tool when there are several, otherwise a couple of extra stats.
   let sub: string;
   if (tools.length > 1 && selected.includes("hoursOnRecord")) {
-    sub = tools.map((k) => `${TOOL_LABELS[k]} ${fmtHours(data.byTool[k]!.totalSeconds)}h`).join("  ·  ");
+    // One line only fits about three tools; beyond that, name the two with the most hours and count the rest.
+    const crowded = tools.length > 3;
+    const shown = crowded ? [...tools].sort((a, b) => data.byTool[b]!.totalSeconds - data.byTool[a]!.totalSeconds).slice(0, 2) : tools;
+    const parts = shown.map((k) => `${TOOL_LABELS[k]} ${fmtHours(data.byTool[k]!.totalSeconds)}h`);
+    if (crowded) parts.push(`+${tools.length - shown.length} more`);
+    sub = parts.join("  ·  ");
   } else {
     sub = selected.filter((k) => k !== hero).slice(0, 2).map((k) => CARD_STATS[k].phrase(stats, tz)).join("  ·  ");
   }
@@ -284,6 +289,7 @@ const TILE_GAP = 10;
 const TILE_W = (INNER - TILE_GAP * (TILE_COLS - 1)) / TILE_COLS;
 const TILE_H = 54;
 const ROSTER_X = 300;
+const ROSTER_LINES = 4;
 
 function drawShowcase(body: string[], c: Ctx, top: number): number {
   const { colors, tz, data, selected, tools } = c;
@@ -303,12 +309,18 @@ function drawShowcase(body: string[], c: Ctx, top: number): number {
 
     // Right column: the tool roster, or for a single tool the last used date.
     if (isHours && tools.length > 1) {
-      tools.forEach((k, i) => {
+      // The block beside the hero fits four lines. With more tools, show the three with the most hours and "+N more".
+      const crowded = tools.length > ROSTER_LINES;
+      const shown = crowded ? [...tools].sort((a, b) => data.byTool[b]!.totalSeconds - data.byTool[a]!.totalSeconds).slice(0, ROSTER_LINES - 1) : tools;
+      shown.forEach((k, i) => {
         const ry = y + 20 + i * 22;
         body.push(`<circle cx="${ROSTER_X + 4}" cy="${ry - 4}" r="4" fill="${TOOL_COLORS[k]}"/>`);
         body.push(text(ROSTER_X + 16, ry, TOOL_LABELS[k], { size: 11, fill: colors.muted }));
         body.push(text(CARD_WIDTH - PAD, ry, `${fmtHours(data.byTool[k]!.totalSeconds)}h`, { size: 13, weight: 600, fill: colors.text, anchor: "end" }));
       });
+      if (crowded) {
+        body.push(text(ROSTER_X + 16, y + 20 + shown.length * 22, `+${tools.length - shown.length} more`, { size: 11, fill: colors.muted }));
+      }
     } else if (isHours && selected.includes("lastUsed")) {
       consumed.add("lastUsed");
       body.push(text(CARD_WIDTH - PAD, y + 34, "LAST USED", { size: 9, weight: 600, fill: colors.muted, anchor: "end", spacing: 1.2 }));

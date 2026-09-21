@@ -31,7 +31,7 @@ export { WEEKDAYS, MONTHS_SHORT, MONTHS_LONG, fmtInt, fmtHours, fmtDuration, fmt
 export { makeIntensity } from "./heat";
 export type { HeatLevel } from "./heat";
 
-export { TOOL_LABELS, TOOL_COLORS, ALL_TOOLS_COLOR } from "./tools";
+export { TOOL_LABELS, TOOL_COLORS, TOOL_HOSTS, BROWSER_TOOL_KEYS, ALL_TOOLS_COLOR } from "./tools";
 
 export { DEFAULT_OPTIONS, resolveOptions, sessionize, combineSessions } from "./sessionize";
 

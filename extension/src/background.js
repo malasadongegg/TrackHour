@@ -8,6 +8,7 @@
  * page cannot back-date or invent time.
  */
 import { activeSecondsSince, addBeat, emptyState, settle, toLog } from "./sessions.js";
+import { toolForUrl } from "./tools.js";
 
 const KEY = "trackhour";
 
@@ -33,9 +34,12 @@ function startOfToday() {
 }
 
 const handlers = {
-  beat: (state, msg) => {
+  beat: (state, msg, sender) => {
+    // The tool comes from the sender's real URL, never from the page's own claim.
+    const tool = toolForUrl(sender && sender.url);
+    if (!tool) return;
     // idleMs comes from the page; it only ever shortens a session, and is bounded so junk cannot matter.
-    addBeat(state, msg.tool, Date.now(), Math.min(Math.max(Number(msg.idleMs) || 0, 0), 600_000));
+    addBeat(state, tool, Date.now(), Math.min(Math.max(Number(msg.idleMs) || 0, 0), 600_000));
   },
   "get-log": (state) => toLog(settle(state, Date.now())),
   status: (state) => {
@@ -59,10 +63,10 @@ const handlers = {
   },
 };
 
-chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   const handler = msg && typeof msg.type === "string" ? handlers[msg.type] : undefined;
   if (!handler) return false;
-  withState((state) => handler(state, msg)).then(
+  withState((state) => handler(state, msg, sender)).then(
     (result) => sendResponse({ ok: true, result }),
     () => sendResponse({ ok: false }),
   );

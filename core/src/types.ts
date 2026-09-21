@@ -7,7 +7,7 @@
  *  - "Day" strings are "YYYY-MM-DD" in a caller-supplied IANA time zone.
  */
 
-export const TOOL_KEYS = ["chatgpt", "claude", "claude_code"] as const;
+export const TOOL_KEYS = ["chatgpt", "claude", "claude_code", "gemini", "perplexity", "copilot", "grok", "deepseek"] as const;
 export type ToolKey = (typeof TOOL_KEYS)[number];
 
 export type Source = "import" | "extension" | "code_hook" | "manual";

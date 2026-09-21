@@ -1,10 +1,11 @@
 /**
- * Runs on claude.ai and chatgpt.com. It answers one question, "is the user
- * actively here right now?", and nothing else.
+ * Runs on the AI web apps listed in the manifest. It answers one question, "is
+ * the user actively here right now?", and nothing else.
  *
- * PRIVACY: it never reads the page. No text, no titles, no URLs beyond the
- * hostname used to pick the tool, no DOM queries. It listens for the FACT that
- * an input event happened (never which key or where) and sends the tool name.
+ * PRIVACY: it never reads the page. No text, no titles, no URLs, no DOM queries.
+ * It listens for the FACT that an input event happened (never which key or
+ * where) and sends how long ago the last one was. Which tool the page belongs
+ * to is worked out by the service worker from the message's sender, not here.
  *
  * Active means all of: the tab is visible, this window has focus, and the user
  * did something (moved the mouse, pressed a key, scrolled, clicked, touched) in
@@ -22,9 +23,6 @@
    */
   const ACTIVE_WINDOW_MS = 90_000;
 
-  const tool = location.hostname === "claude.ai" ? "claude" : location.hostname === "chatgpt.com" ? "chatgpt" : null;
-  if (!tool) return;
-
   let lastInput = 0;
   const touch = () => {
     lastInput = Date.now();
@@ -38,7 +36,7 @@
     if (document.visibilityState !== "visible" || !document.hasFocus()) return;
     if (Date.now() - lastInput > ACTIVE_WINDOW_MS) return;
     try {
-      chrome.runtime.sendMessage({ type: "beat", tool, idleMs: Date.now() - lastInput }, () => void chrome.runtime.lastError);
+      chrome.runtime.sendMessage({ type: "beat", idleMs: Date.now() - lastInput }, () => void chrome.runtime.lastError);
     } catch {
       // The extension was reloaded or updated under this page; this script is orphaned, so stop.
       clearInterval(timer);

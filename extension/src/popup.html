@@ -13,11 +13,9 @@
       <thead>
         <tr><th></th><th>Today</th><th>All time</th></tr>
       </thead>
-      <tbody>
-        <tr><td>Claude</td><td id="claude-today">0m</td><td id="claude-all">0m</td></tr>
-        <tr><td>ChatGPT</td><td id="chatgpt-today">0m</td><td id="chatgpt-all">0m</td></tr>
-      </tbody>
+      <tbody id="rows"></tbody>
     </table>
+    <p class="note" id="empty" hidden>Nothing tracked yet. Use one of the supported sites and reopen this.</p>
     <p class="note" id="count"></p>
 
     <div class="row">
@@ -30,6 +28,7 @@
       Counts only time you are active in a focused tab. Never reads your chats. Open the TrackHour site and it imports
       this automatically.
     </p>
-    <script src="popup.js"></script>
+    <p class="note" id="sites"></p>
+    <script type="module" src="popup.js"></script>
   </body>
 </html>
