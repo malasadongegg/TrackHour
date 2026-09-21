@@ -51,9 +51,13 @@ export function AccountPage({ auth, sessions, records, now, timeZone, card }: Pr
   const [previewNonce, setPreviewNonce] = useState(0);
 
   // The exact payload that would be uploaded. Computed in the browser and shown before saving.
+  // card.tools is a fresh array every render (normalizeCardConfig always rebuilds it), so this
+  // depends on its contents rather than the array itself; see the matching note in CardPage.
+  const toolsKey = card.tools.join(",");
   const aggregates = useMemo(
     () => toAggregates(buildCardData(sessions, records, { now, timeZone }, card.tools)),
-    [sessions, records, now, timeZone, card.tools],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- toolsKey stands in for card.tools on purpose
+    [sessions, records, now, timeZone, toolsKey],
   );
   const payload = useMemo(() => JSON.stringify({ card_config: card, aggregates }, null, 2), [card, aggregates]);
 
