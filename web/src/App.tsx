@@ -3,14 +3,17 @@ import {
   DEFAULT_CARD_CONFIG,
   TOOL_KEYS,
   buildPreview,
+  combineSessions,
   computeStats,
   dailyMinutes,
   dayKey,
   dedupeRecords,
+  isClaudeCodeLog,
   monthlyHours,
   normalizeCardConfig,
   describeShape,
   detectManifest,
+  parseClaudeCodeLog,
   parseExport,
   sessionize,
   type CardConfig,
@@ -28,7 +31,18 @@ import { ImportPreview } from "./components/ImportPreview";
 import { MonthlyBars } from "./components/MonthlyBars";
 import { StatList } from "./components/StatList";
 import { ToolCard } from "./components/ToolCard";
-import { addImport, deleteBatch, loadLibrary, requestPersistence, saveCard, saveOptions, wipeAll, type Library } from "./lib/db";
+import {
+  addImport,
+  addMeasuredSessions,
+  deleteBatch,
+  loadLibrary,
+  requestPersistence,
+  saveCard,
+  saveOptions,
+  wipeAll,
+  wipeMeasuredSessions,
+  type Library,
+} from "./lib/db";
 import { fmtInt } from "./lib/format";
 import { ALL_COLOR, TOOL_META } from "./lib/tools";
 import { readExport } from "./lib/zip";
@@ -51,12 +65,9 @@ interface Pending {
   preview: Preview;
 }
 
-interface Report {
-  toolKey: ToolKey;
-  added: number;
-  updated: number;
-  unchanged: number;
-}
+type Report =
+  | { kind: "import"; toolKey: ToolKey; added: number; updated: number; unchanged: number }
+  | { kind: "measured"; added: number; alreadyStored: number };
 
 export function App() {
   const [library, setLibrary] = useState<Library | null>(null);
@@ -99,13 +110,18 @@ export function App() {
 
   const records = library?.records;
   const options = library?.options;
+  const measuredSessions = library?.measuredSessions;
 
   const derived = useMemo(() => {
-    if (!records || !options) return null;
+    if (!records || !options || !measuredSessions) return null;
     const now = Date.now();
     const ctx = { now, timeZone };
-    const sessions = TOOL_KEYS.flatMap((k) => sessionize(records, k, options));
-    const toolsWithData = TOOL_KEYS.filter((k) => records.some((r) => r.toolKey === k));
+    const estimated = TOOL_KEYS.flatMap((k) => sessionize(records, k, options));
+    // Measured (Claude Code hook, later a browser extension) wins over an estimate for any day it covers.
+    const sessions = combineSessions(estimated, measuredSessions, timeZone);
+    const toolsWithData = TOOL_KEYS.filter(
+      (k) => records.some((r) => r.toolKey === k) || measuredSessions.some((s) => s.toolKey === k),
+    );
     const stats = {
       all: computeStats(sessions, records, ctx, "all"),
       chatgpt: computeStats(sessions, records, ctx, "chatgpt"),
@@ -113,7 +129,7 @@ export function App() {
       claude_code: computeStats(sessions, records, ctx, "claude_code"),
     };
     return { sessions, toolsWithData, stats, now, today: dayKey(now, timeZone) };
-  }, [records, options, timeZone]);
+  }, [records, options, measuredSessions, timeZone]);
 
   const activeView: View = derived && (view === "all" || derived.toolsWithData.includes(view)) ? view : "all";
   const viewSessions = useMemo(
@@ -130,6 +146,15 @@ export function App() {
     setBusy(true);
     try {
       const json = await readExport(file);
+      if (isClaudeCodeLog(json)) {
+        const { sessions } = parseClaudeCodeLog(json);
+        if (sessions.length === 0) throw new Error("This looks like a Claude Code session log, but it has no usable sessions in it.");
+        const result = await addMeasuredSessions(sessions);
+        void requestPersistence();
+        await reload();
+        setReport({ kind: "measured", added: result.added, alreadyStored: sessions.length - result.added });
+        return;
+      }
       const batchId = crypto.randomUUID();
       const parsed = parseExport(json, batchId);
       if (!parsed) {
@@ -170,7 +195,7 @@ export function App() {
       const result = await addImport(batch, fresh, updated);
       void requestPersistence();
       await reload();
-      setReport({ toolKey: pending.parsed.toolKey, added: result.added, updated: result.updated, unchanged: unchanged.length });
+      setReport({ kind: "import", toolKey: pending.parsed.toolKey, added: result.added, updated: result.updated, unchanged: unchanged.length });
       setPending(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Import failed.");
@@ -208,6 +233,13 @@ export function App() {
     await reload();
   }
 
+  async function removeMeasured() {
+    if (!window.confirm("Delete all Claude Code sessions measured by the hook? This cannot be undone. You can re-import the log file again.")) return;
+    await wipeMeasuredSessions();
+    setReport(null);
+    await reload();
+  }
+
   async function wipe() {
     if (!window.confirm("Delete ALL imported data from this browser? This cannot be undone. You can import your exports again.")) return;
     await wipeAll();
@@ -234,16 +266,24 @@ export function App() {
     );
   }
 
-  const hasData = library.records.length > 0;
+  const hasData = library.records.length > 0 || library.measuredSessions.length > 0;
   const viewColor = activeView === "all" ? ALL_COLOR : TOOL_META[activeView].color;
   const viewLabel = activeView === "all" ? "All tools" : TOOL_META[activeView].label;
 
   return (
     <Shell nav={hasData ? <Tabs page={page} onChange={setPage} auth={auth} /> : null}>
-      {report && (
+      {report && report.kind === "import" && (
         <Banner tone="ok" onClose={() => setReport(null)}>
           {TOOL_META[report.toolKey].label}: <strong>{fmtInt(report.added)}</strong> new and <strong>{fmtInt(report.updated)}</strong> updated
           conversations. {fmtInt(report.unchanged)} already imported {report.unchanged === 1 ? "conversation was" : "conversations were"} unchanged and skipped.
+        </Banner>
+      )}
+      {report && report.kind === "measured" && (
+        <Banner tone="ok" onClose={() => setReport(null)}>
+          Claude Code: <strong>{fmtInt(report.added)}</strong> new measured {report.added === 1 ? "session" : "sessions"}.{" "}
+          {report.alreadyStored > 0
+            ? `${fmtInt(report.alreadyStored)} already recorded ${report.alreadyStored === 1 ? "session was" : "sessions were"} skipped.`
+            : "No sessions were skipped."}
         </Banner>
       )}
       {error && (
@@ -325,8 +365,10 @@ export function App() {
             <DataManager
               batches={library.batches}
               totalConversations={library.records.length}
+              measuredSessionCount={library.measuredSessions.length}
               timeZone={timeZone}
               onDelete={removeBatch}
+              onDeleteMeasured={removeMeasured}
               onWipe={wipe}
             />
           </section>

@@ -179,3 +179,21 @@ describe("makeIntensity", () => {
     expect(makeIntensity([])(0)).toBe(0);
   });
 });
+
+describe("linesChanged", () => {
+  it("sums linesChanged across a tool's sessions, treating missing values as zero", () => {
+    const now = at("2026-03-11T12:00:00Z");
+    const sessions = [
+      { id: "1", toolKey: "claude_code" as const, startedAt: at("2026-03-10T09:00:00Z"), endedAt: at("2026-03-10T10:00:00Z"), activeSeconds: 3600, messageCount: 4, linesChanged: 30, source: "code_hook" as const, confidence: "measured" as const, importBatchId: null, externalRef: "1" },
+      { id: "2", toolKey: "claude_code" as const, startedAt: at("2026-03-10T11:00:00Z"), endedAt: at("2026-03-10T11:30:00Z"), activeSeconds: 1800, messageCount: 2, source: "code_hook" as const, confidence: "measured" as const, importBatchId: null, externalRef: "2" }, // no linesChanged
+    ];
+    const s = computeStats(sessions, [], { now, timeZone: "UTC" }, "claude_code");
+    expect(s.linesChanged).toBe(30);
+  });
+
+  it("is zero for a tool with no sessions", () => {
+    const now = at("2026-03-11T12:00:00Z");
+    const s = computeStats([], [], { now, timeZone: "UTC" }, "chatgpt");
+    expect(s.linesChanged).toBe(0);
+  });
+});

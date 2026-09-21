@@ -6,13 +6,16 @@ import {
   type CardConfig,
   type ConversationRecord,
   type ImportBatch,
+  type Session,
   type SessionizeOptions,
 } from "@trackhour/core";
 
 /**
  * Persistence. Everything lives in this browser's IndexedDB and never leaves it.
- * Only ConversationRecords and import batches are stored. Sessions and stats are
- * derived from them on every load.
+ * ConversationRecords (ChatGPT/Claude imports) and import batches are stored;
+ * their Sessions are derived on every load. measuredSessions are different:
+ * they arrive already-a-Session (from the Claude Code hook, and later a
+ * browser extension), so they are stored and used as-is.
  */
 
 type StoredRecord = ConversationRecord & { key: string };
@@ -20,13 +23,14 @@ type StoredRecord = ConversationRecord & { key: string };
 interface Schema extends DBSchema {
   records: { key: string; value: StoredRecord; indexes: { byBatch: string } };
   batches: { key: string; value: ImportBatch };
+  measuredSessions: { key: string; value: Session };
   settings: { key: string; value: SessionizeOptions | CardConfig };
 }
 
 let dbPromise: Promise<IDBPDatabase<Schema>> | null = null;
 
 function db() {
-  dbPromise ??= openDB<Schema>("trackhour", 2, {
+  dbPromise ??= openDB<Schema>("trackhour", 3, {
     async upgrade(d, oldVersion, _newVersion, tx) {
       if (oldVersion < 1) {
         const records = d.createObjectStore("records", { keyPath: "key" });
@@ -45,6 +49,9 @@ function db() {
           cursor = await cursor.continue();
         }
       }
+      if (oldVersion < 3) {
+        d.createObjectStore("measuredSessions", { keyPath: "externalRef" });
+      }
     },
   });
   return dbPromise;
@@ -53,21 +60,24 @@ function db() {
 export interface Library {
   records: ConversationRecord[];
   batches: ImportBatch[];
+  measuredSessions: Session[];
   options: SessionizeOptions;
   card: CardConfig;
 }
 
 export async function loadLibrary(): Promise<Library> {
   const d = await db();
-  const [records, batches, options, card] = await Promise.all([
+  const [records, batches, measuredSessions, options, card] = await Promise.all([
     d.getAll("records"),
     d.getAll("batches"),
+    d.getAll("measuredSessions"),
     d.get("settings", "sessionize"),
     d.get("settings", "card"),
   ]);
   return {
     records,
     batches: batches.sort((a, b) => b.importedAt - a.importedAt),
+    measuredSessions,
     options: { ...DEFAULT_OPTIONS, ...(options as Partial<SessionizeOptions> | undefined) },
     // Stored data is untrusted input like any other: always normalize.
     card: normalizeCardConfig(card),
@@ -121,11 +131,37 @@ export async function deleteBatch(batchId: string): Promise<void> {
   await tx.done;
 }
 
+/**
+ * Imports directly-measured sessions (the Claude Code hook's log). Each one is
+ * keyed by its own externalRef (the hook's session_id), so re-dropping the same
+ * log file after more sessions have accumulated only adds the new ones; a
+ * session already stored is left as-is, since a finished measured session
+ * never changes after the fact.
+ */
+export async function addMeasuredSessions(sessions: Session[]): Promise<{ added: number }> {
+  const d = await db();
+  const tx = d.transaction("measuredSessions", "readwrite");
+  const store = tx.objectStore("measuredSessions");
+  let added = 0;
+  for (const s of sessions) {
+    if (await store.get(s.externalRef)) continue;
+    await store.put(s);
+    added++;
+  }
+  await tx.done;
+  return { added };
+}
+
+export async function wipeMeasuredSessions(): Promise<void> {
+  const d = await db();
+  await d.clear("measuredSessions");
+}
+
 /** Deletes every import. Keeps the estimation and card settings. */
 export async function wipeAll(): Promise<void> {
   const d = await db();
-  const tx = d.transaction(["records", "batches"], "readwrite");
-  await Promise.all([tx.objectStore("records").clear(), tx.objectStore("batches").clear()]);
+  const tx = d.transaction(["records", "batches", "measuredSessions"], "readwrite");
+  await Promise.all([tx.objectStore("records").clear(), tx.objectStore("batches").clear(), tx.objectStore("measuredSessions").clear()]);
   await tx.done;
 }
 

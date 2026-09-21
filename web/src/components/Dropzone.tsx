@@ -101,6 +101,9 @@ export function Dropzone({ onFile, busy, compact = false }: Props) {
           <span className="font-semibold text-ink">Claude:</span> Settings, Privacy, Export data. You get an email with a ZIP.
         </p>
       </div>
+      <p className="mt-3 text-center text-xs text-muted">
+        Set up the <span className="font-semibold text-ink">Claude Code hook</span> and its session log drops in here too.
+      </p>
     </div>
   );
 }

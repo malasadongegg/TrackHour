@@ -32,6 +32,7 @@
  * and re-derive.
  */
 
+import { dayKey, nextDayStart } from "./dates";
 import type { ConversationRecord, Session, SessionizeOptions, ToolKey } from "./types";
 
 export const DEFAULT_OPTIONS: SessionizeOptions = {
@@ -115,4 +116,31 @@ export function sessionize(
     });
   }
   return sessions;
+}
+
+/**
+ * COMBINING ESTIMATED AND MEASURED SESSIONS
+ * ==========================================
+ * Once a tool has a source of MEASURED time for a given tool (the Claude Code
+ * hook, or later the browser extension), that source is trusted over an
+ * estimate for any day it actually covers. Concretely: for each local day a
+ * measured session touches, every ESTIMATED session for that same tool that
+ * starts on that day is dropped, and the measured sessions stand in its place.
+ * Days a measured source has never reported (including all of history before
+ * it started running) keep their estimated sessions untouched, so a fresh
+ * install of the hook does not erase your imported past.
+ */
+export function combineSessions(estimated: Session[], measured: Session[], timeZone: string): Session[] {
+  const coveredDaysByTool = new Map<ToolKey, Set<string>>();
+  for (const s of measured) {
+    const days = coveredDaysByTool.get(s.toolKey) ?? new Set<string>();
+    let cursor = s.startedAt;
+    while (cursor < s.endedAt) {
+      days.add(dayKey(cursor, timeZone));
+      cursor = Math.min(s.endedAt, nextDayStart(cursor, timeZone));
+    }
+    coveredDaysByTool.set(s.toolKey, days);
+  }
+  const kept = estimated.filter((s) => !coveredDaysByTool.get(s.toolKey)?.has(dayKey(s.startedAt, timeZone)));
+  return [...kept, ...measured];
 }

@@ -1,6 +1,6 @@
 import type { ToolStats } from "@trackhour/core";
 import { fmtDate, fmtHours, fmtInt } from "../lib/format";
-import { EstimatedBadge } from "./Badge";
+import { ConfidenceBadge } from "./Badge";
 
 interface Props {
   name: string;
@@ -23,7 +23,7 @@ export function ToolCard({ name, color, stats, timeZone, wide = false, note }: P
         <div>
           <div className="flex items-center gap-3">
             <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">{name}</h3>
-            <EstimatedBadge />
+            <ConfidenceBadge confidence={stats.confidence} />
           </div>
           <div className="mt-3 flex items-baseline gap-2">
             <span className={`num font-bold leading-none text-white ${wide ? "text-6xl" : "text-5xl"}`}>{fmtHours(stats.totalSeconds)}</span>

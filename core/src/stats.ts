@@ -146,12 +146,14 @@ export function computeStats(
   let lastUsed: number | null = null;
   let totalSeconds = 0;
   let longest = 0;
+  let linesChanged = 0;
   const confidences = new Set<Confidence>();
   for (const x of s) {
     if (firstUsed === null || x.startedAt < firstUsed) firstUsed = x.startedAt;
     if (lastUsed === null || x.endedAt > lastUsed) lastUsed = x.endedAt;
     totalSeconds += x.activeSeconds;
     if (x.activeSeconds > longest) longest = x.activeSeconds;
+    linesChanged += x.linesChanged ?? 0;
     confidences.add(x.confidence);
   }
 
@@ -175,6 +177,7 @@ export function computeStats(
     sessionCount: s.length,
     conversationCount: r.length,
     messages: { user, assistant, total: user + assistant },
+    linesChanged,
     avgSessionSeconds: s.length === 0 ? 0 : totalSeconds / s.length,
     longestSessionSeconds: longest,
     currentStreak: streaks.current,

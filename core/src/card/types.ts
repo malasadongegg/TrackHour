@@ -20,6 +20,7 @@ export const CARD_STAT_KEYS = [
   "sessions",
   "conversations",
   "messages",
+  "linesChanged",
   "avgSession",
   "longestSession",
   "currentStreak",

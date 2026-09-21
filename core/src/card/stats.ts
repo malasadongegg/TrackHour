@@ -62,6 +62,12 @@ export const CARD_STATS: Record<CardStatKey, CardStatDef> = {
     value: (s) => fmtInt(s.messages.total),
     phrase: (s) => plural(s.messages.total, "message"),
   },
+  linesChanged: {
+    label: "Lines changed",
+    group: "Sessions",
+    value: (s) => fmtInt(s.linesChanged),
+    phrase: (s) => `${plural(s.linesChanged, "line")} changed`,
+  },
   avgSession: {
     label: "Average session",
     group: "Sessions",

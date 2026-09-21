@@ -1,11 +1,18 @@
 import type { ToolStats } from "@trackhour/core";
 import { fmtDate, fmtDuration, fmtHours, fmtInt, fmtMonth, WEEKDAYS } from "../lib/format";
-import { EstimatedBadge } from "./Badge";
+import { ConfidenceBadge } from "./Badge";
 
 interface Props {
   stats: ToolStats;
   timeZone: string;
 }
+
+const CAPTION: Record<ToolStats["confidence"], string> = {
+  estimated: "Durations are estimates. Weeks start on Monday.",
+  measured: "Durations are measured directly. Weeks start on Monday.",
+  mixed: "Some durations are measured, some are estimated. They are never blended for the same day. Weeks start on Monday.",
+  manual: "Durations were entered by hand. Weeks start on Monday.",
+};
 
 export function StatList({ stats: s, timeZone }: Props) {
   const days = (n: number) => `${fmtInt(n)} ${n === 1 ? "day" : "days"}`;
@@ -13,12 +20,13 @@ export function StatList({ stats: s, timeZone }: Props) {
     ["First used", fmtDate(s.firstUsed, timeZone)],
     ["Last used", fmtDate(s.lastUsed, timeZone)],
     ["Days since first use", s.daysSinceFirstUse === null ? "None" : fmtInt(s.daysSinceFirstUse)],
-    ["Total estimated hours", `${fmtHours(s.totalSeconds)} hrs`],
+    ["Total hours", `${fmtHours(s.totalSeconds)} hrs`],
     ["Sessions", fmtInt(s.sessionCount)],
     ["Conversations", fmtInt(s.conversationCount)],
     ["Messages", `${fmtInt(s.messages.total)}`],
     ["Your messages", fmtInt(s.messages.user)],
     ["Assistant messages", fmtInt(s.messages.assistant)],
+    ...(s.linesChanged > 0 ? ([["Lines changed", fmtInt(s.linesChanged)]] as Array<[string, string]>) : []),
     ["Average session", s.sessionCount ? fmtDuration(s.avgSessionSeconds) : "None"],
     ["Longest session", s.sessionCount ? fmtDuration(s.longestSessionSeconds) : "None"],
     ["Current streak", days(s.currentStreak)],
@@ -34,8 +42,8 @@ export function StatList({ stats: s, timeZone }: Props) {
   return (
     <div>
       <div className="mb-3 flex items-center gap-2 text-xs text-muted">
-        <EstimatedBadge />
-        <span>Durations are estimates. Weeks start on Monday.</span>
+        <ConfidenceBadge confidence={s.confidence} />
+        <span>{CAPTION[s.confidence]}</span>
       </div>
       <div className="overflow-hidden rounded-lg border border-line bg-panel">
       <dl className="-mb-px -mr-px grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">

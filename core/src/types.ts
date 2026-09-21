@@ -157,6 +157,8 @@ export interface ToolStats {
   sessionCount: number;
   conversationCount: number;
   messages: MessageCounts;
+  /** Sum of each session's linesChanged (Claude Code hook sessions). 0 for tools with no such data. */
+  linesChanged: number;
   avgSessionSeconds: number;
   longestSessionSeconds: number;
   currentStreak: number;

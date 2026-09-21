@@ -342,3 +342,16 @@ describe("toAggregates (the only data a saved profile uploads)", () => {
     for (const s of strings) expect(s).toMatch(/^(UTC|\d{4}-\d{2}(-\d{2})?|chatgpt|claude|claude_code|all|estimated|measured|manual|mixed)$/);
   });
 });
+
+describe("linesChanged card stat", () => {
+  it("is selectable and renders the total", async () => {
+    const { buildCardData: build } = await import("../src");
+    const ccSessions = [
+      { id: "1", toolKey: "claude_code" as const, startedAt: at("2026-03-10T09:00:00Z"), endedAt: at("2026-03-10T10:00:00Z"), activeSeconds: 3600, messageCount: 4, linesChanged: 123, source: "code_hook" as const, confidence: "measured" as const, importBatchId: null, externalRef: "1" },
+    ];
+    const ccData = build(ccSessions, [], ctx, ["claude_code"]);
+    const svg = renderCard({ ...DEFAULT_CARD_CONFIG, layout: "detailed", tools: ["claude_code"], stats: ["linesChanged"] }, ccData);
+    expect(svg).toContain("123");
+    expect(svg).toContain("Lines changed");
+  });
+});
