@@ -51,9 +51,26 @@ A Claude Code hook that measures your Claude Code session length and lines chang
 
 6. Repeat step 5 whenever you want your dashboard and card to catch up (there is no live sync yet; see below).
 
+## Backfilling your past usage
+
+The hook only sees sessions from the day you install it. Claude Code also keeps a local transcript of every session in `~/.claude/projects/`, so you can estimate your history from those:
+
+```
+node claude-code-hook/backfill.mjs
+```
+
+This writes `~/.trackhour/claude-code-history.json`. Drag it onto the TrackHour dropzone like any other file. It is labeled **Estimated**, exactly like a ChatGPT or Claude import: a session is a run of activity with no gap over 15 minutes.
+
+- Privacy: the script reads your transcripts only on your machine, and the output holds numbers and generated ids, never any prompt, reply or code.
+- Re-run it any time to pick up more history; already-imported sessions are updated, not duplicated.
+- Claude Code deletes old transcripts after `cleanupPeriodDays` (default 30 days), so run this before history ages out, and consider raising that setting in `~/.claude/settings.json`.
+- "Messages" for backfilled sessions counts your typed prompts, while hook sessions count file-edit tool calls, so the two are not directly comparable.
+- Claude Code deletes old transcripts but often keeps its prompt log (`~/.claude/history.jsonl`) longer, so the script also uses that log's timestamps (never its text) for the time before your earliest transcript. That part is a low estimate, since it only sees your prompts.
+- Where the live hook has measured a stretch of time, the measured session replaces the estimate for exactly that stretch; the rest of the day keeps its estimate.
+
 ## How it combines with imports
 
-If you've never imported Claude Code data any other way, this is simply additive. If a browser extension (a possible future addition) or another measured source ever reports the *same* days for a tool, TrackHour prefers the measured number over an estimate for those days and leaves everything earlier untouched — see `combineSessions` in `core/src/sessionize.ts`.
+If you've never imported Claude Code data any other way, this is simply additive. If a browser extension (a possible future addition) or another measured source ever reports the *same* days for a tool, TrackHour prefers the measured number over an estimate for exactly the time it covers and leaves everything else untouched — see `combineSessions` in `core/src/sessionize.ts`.
 
 ## Known limits
 

@@ -10,6 +10,13 @@
  *
  * Expected shape (written by claude-code-hook/hook.mjs):
  *   { source: "trackhour-claude-code-hook", version: 1, sessions: [...] }
+ *
+ * The same entry shape is also written by claude-code-hook/backfill.mjs, which
+ * estimates PAST sessions from Claude Code's local transcripts, under
+ *   { source: "trackhour-claude-code-backfill", ... }
+ * Those are only estimates, so they come out `confidence: "estimated"`,
+ * `source: "import"`. Which of the two a session is comes from this file-level
+ * marker alone, never from anything an individual entry claims.
  */
 import type { Session } from "../types";
 import { isObj } from "./util";
@@ -21,9 +28,12 @@ export interface ParsedMeasuredSessions {
   skipped: number;
 }
 
-/** True if `json` looks like a Claude Code hook log, so the importer can route to this parser. */
+const HOOK_SOURCE = "trackhour-claude-code-hook";
+const BACKFILL_SOURCE = "trackhour-claude-code-backfill";
+
+/** True if `json` looks like a Claude Code hook or backfill log, so the importer can route to this parser. */
 export function isClaudeCodeLog(json: unknown): boolean {
-  return isObj(json) && json.source === "trackhour-claude-code-hook" && Array.isArray(json.sessions);
+  return isObj(json) && (json.source === HOOK_SOURCE || json.source === BACKFILL_SOURCE) && Array.isArray(json.sessions);
 }
 
 function isValidEntry(v: unknown): v is Session {
@@ -45,6 +55,7 @@ function isValidEntry(v: unknown): v is Session {
 export function parseClaudeCodeLog(json: unknown): ParsedMeasuredSessions {
   if (!isClaudeCodeLog(json)) return { sessions: [], skipped: 0 };
   const raw = (json as { sessions: unknown[] }).sessions;
+  const measured = (json as { source: string }).source === HOOK_SOURCE;
   const sessions: Session[] = [];
   let skipped = 0;
   for (const item of raw) {
@@ -53,7 +64,7 @@ export function parseClaudeCodeLog(json: unknown): ParsedMeasuredSessions {
       continue;
     }
     // Normalized to exactly the Session shape: unknown extra fields in the log are dropped,
-    // and confidence/source are always what this parser promises, regardless of what the file said.
+    // and confidence/source come from the file-level marker, regardless of what an entry claimed.
     sessions.push({
       id: String(item.id ?? item.externalRef),
       toolKey: "claude_code",
@@ -62,8 +73,8 @@ export function parseClaudeCodeLog(json: unknown): ParsedMeasuredSessions {
       activeSeconds: item.activeSeconds,
       messageCount: item.messageCount,
       linesChanged: item.linesChanged,
-      source: "code_hook",
-      confidence: "measured",
+      source: measured ? "code_hook" : "import",
+      confidence: measured ? "measured" : "estimated",
       importBatchId: null,
       externalRef: item.externalRef,
     });

@@ -32,7 +32,6 @@
  * and re-derive.
  */
 
-import { dayKey, nextDayStart } from "./dates";
 import type { ConversationRecord, Session, SessionizeOptions, ToolKey } from "./types";
 
 export const DEFAULT_OPTIONS: SessionizeOptions = {
@@ -121,26 +120,62 @@ export function sessionize(
 /**
  * COMBINING ESTIMATED AND MEASURED SESSIONS
  * ==========================================
- * Once a tool has a source of MEASURED time for a given tool (the Claude Code
- * hook, or later the browser extension), that source is trusted over an
- * estimate for any day it actually covers. Concretely: for each local day a
- * measured session touches, every ESTIMATED session for that same tool that
- * starts on that day is dropped, and the measured sessions stand in its place.
- * Days a measured source has never reported (including all of history before
- * it started running) keep their estimated sessions untouched, so a fresh
- * install of the hook does not erase your imported past.
+ * Once a tool has a source of MEASURED time (the Claude Code hook, or later the
+ * browser extension), that source is trusted over an estimate for the exact
+ * stretches of time it covers. Concretely: for each tool, every ESTIMATED
+ * session has the measured intervals for that same tool cut out of it. What is
+ * left of it, if anything, is kept as an estimate (its message and line counts
+ * scaled to the part that remains), and the measured sessions stand in for the
+ * rest. Time a measured source never reported, including all of history before
+ * it started running, keeps its estimate, so a short measured session cannot
+ * erase a whole day of estimated use and a fresh install of the hook does not
+ * erase your imported past.
  */
-export function combineSessions(estimated: Session[], measured: Session[], timeZone: string): Session[] {
-  const coveredDaysByTool = new Map<ToolKey, Set<string>>();
-  for (const s of measured) {
-    const days = coveredDaysByTool.get(s.toolKey) ?? new Set<string>();
-    let cursor = s.startedAt;
-    while (cursor < s.endedAt) {
-      days.add(dayKey(cursor, timeZone));
-      cursor = Math.min(s.endedAt, nextDayStart(cursor, timeZone));
-    }
-    coveredDaysByTool.set(s.toolKey, days);
+export function combineSessions(estimated: Session[], measured: Session[]): Session[] {
+  const coverByTool = new Map<ToolKey, Array<[start: number, end: number]>>();
+  for (const s of [...measured].sort((a, b) => a.startedAt - b.startedAt)) {
+    const cover = coverByTool.get(s.toolKey) ?? [];
+    const last = cover[cover.length - 1];
+    if (last && s.startedAt <= last[1]) last[1] = Math.max(last[1], s.endedAt);
+    else cover.push([s.startedAt, s.endedAt]);
+    coverByTool.set(s.toolKey, cover);
   }
-  const kept = estimated.filter((s) => !coveredDaysByTool.get(s.toolKey)?.has(dayKey(s.startedAt, timeZone)));
+
+  const kept: Session[] = [];
+  for (const e of estimated) {
+    const cover = coverByTool.get(e.toolKey);
+    if (!cover) {
+      kept.push(e);
+      continue;
+    }
+    const pieces: Array<[number, number]> = [];
+    let cursor = e.startedAt;
+    for (const [a, b] of cover) {
+      if (b <= cursor) continue;
+      if (a >= e.endedAt) break;
+      if (a > cursor) pieces.push([cursor, a]);
+      cursor = Math.max(cursor, b);
+      if (cursor >= e.endedAt) break;
+    }
+    if (cursor < e.endedAt) pieces.push([cursor, e.endedAt]);
+
+    if (pieces.length === 1 && pieces[0][0] === e.startedAt && pieces[0][1] === e.endedAt) {
+      kept.push(e);
+      continue;
+    }
+    const total = e.endedAt - e.startedAt;
+    pieces.forEach(([a, b], n) => {
+      const share = (b - a) / total;
+      kept.push({
+        ...e,
+        id: `${e.id}#${n}`,
+        startedAt: a,
+        endedAt: b,
+        activeSeconds: (b - a) / 1000,
+        messageCount: Math.round(e.messageCount * share),
+        linesChanged: e.linesChanged === undefined ? undefined : Math.round(e.linesChanged * share),
+      });
+    });
+  }
   return [...kept, ...measured];
 }

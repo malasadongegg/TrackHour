@@ -34,12 +34,18 @@ export function ToolCard({ name, color, stats, timeZone, wide = false, note }: P
           </p>
           {note && <p className="mt-1 text-xs text-muted">{note}</p>}
         </div>
-        <dl className={`grid grid-cols-3 gap-4 text-sm ${wide ? "mt-5 sm:mt-0 sm:min-w-[22rem]" : "mt-5"}`}>
-          {[
-            ["Sessions", stats.sessionCount],
-            ["Conversations", stats.conversationCount],
-            ["Messages", stats.messages.total],
-          ].map(([label, value]) => (
+        <dl className={`flex flex-wrap gap-x-8 gap-y-4 text-sm ${wide ? "mt-5 sm:mt-0 sm:min-w-[22rem]" : "mt-5"}`}>
+          {(stats.conversationCount === 0 && stats.messages.total === 0 && stats.linesChanged > 0
+            ? [
+                ["Sessions", stats.sessionCount],
+                ["Lines changed", stats.linesChanged],
+              ]
+            : [
+                ["Sessions", stats.sessionCount],
+                ["Conversations", stats.conversationCount],
+                ["Messages", stats.messages.total],
+              ]
+          ).map(([label, value]) => (
             <div key={label}>
               <dd className="num text-lg font-semibold text-white">{fmtInt(value as number)}</dd>
               <dt className="text-xs text-muted">{label}</dt>

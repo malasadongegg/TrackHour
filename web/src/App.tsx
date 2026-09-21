@@ -67,7 +67,7 @@ interface Pending {
 
 type Report =
   | { kind: "import"; toolKey: ToolKey; added: number; updated: number; unchanged: number }
-  | { kind: "measured"; added: number; alreadyStored: number };
+  | { kind: "measured"; added: number; alreadyStored: number; estimated: boolean };
 
 export function App() {
   const [library, setLibrary] = useState<Library | null>(null);
@@ -117,8 +117,11 @@ export function App() {
     const now = Date.now();
     const ctx = { now, timeZone };
     const estimated = TOOL_KEYS.flatMap((k) => sessionize(records, k, options));
-    // Measured (Claude Code hook, later a browser extension) wins over an estimate for any day it covers.
-    const sessions = combineSessions(estimated, measuredSessions, timeZone);
+    // Measured (Claude Code hook, later a browser extension) wins over an estimate for the time it covers.
+    const sessions = combineSessions(
+      [...estimated, ...measuredSessions.filter((s) => s.confidence === "estimated")],
+      measuredSessions.filter((s) => s.confidence !== "estimated"),
+    );
     const toolsWithData = TOOL_KEYS.filter(
       (k) => records.some((r) => r.toolKey === k) || measuredSessions.some((s) => s.toolKey === k),
     );
@@ -152,7 +155,12 @@ export function App() {
         const result = await addMeasuredSessions(sessions);
         void requestPersistence();
         await reload();
-        setReport({ kind: "measured", added: result.added, alreadyStored: sessions.length - result.added });
+        setReport({
+          kind: "measured",
+          added: result.added,
+          alreadyStored: sessions.length - result.added,
+          estimated: sessions.every((s) => s.confidence === "estimated"),
+        });
         return;
       }
       const batchId = crypto.randomUUID();
@@ -280,7 +288,7 @@ export function App() {
       )}
       {report && report.kind === "measured" && (
         <Banner tone="ok" onClose={() => setReport(null)}>
-          Claude Code: <strong>{fmtInt(report.added)}</strong> new measured {report.added === 1 ? "session" : "sessions"}.{" "}
+          Claude Code: <strong>{fmtInt(report.added)}</strong> new {report.estimated ? "estimated" : "measured"} {report.added === 1 ? "session" : "sessions"}.{" "}
           {report.alreadyStored > 0
             ? `${fmtInt(report.alreadyStored)} already recorded ${report.alreadyStored === 1 ? "session was" : "sessions were"} skipped.`
             : "No sessions were skipped."}

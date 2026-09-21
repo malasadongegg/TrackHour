@@ -20,7 +20,7 @@ export function DataManager({ batches, totalConversations, measuredSessionCount,
         <span className="num text-ink">{batches.length}</span> {batches.length === 1 ? "import" : "imports"}
         {measuredSessionCount > 0 && (
           <>
-            , and <span className="num text-ink">{fmtInt(measuredSessionCount)}</span> measured Claude Code{" "}
+            , and <span className="num text-ink">{fmtInt(measuredSessionCount)}</span> Claude Code{" "}
             {measuredSessionCount === 1 ? "session" : "sessions"}
           </>
         )}
@@ -54,9 +54,9 @@ export function DataManager({ batches, totalConversations, measuredSessionCount,
               <div className="flex items-center gap-2">
                 <span className="h-2.5 w-2.5 rounded-full" style={{ background: TOOL_META.claude_code.color }} aria-hidden="true" />
                 <span className="font-medium text-white">{TOOL_META.claude_code.label}</span>
-                <span className="truncate text-muted">from the Claude Code hook</span>
+                <span className="truncate text-muted">from local Claude Code logs</span>
               </div>
-              <div className="num mt-0.5 text-xs text-muted">{fmtInt(measuredSessionCount)} measured sessions</div>
+              <div className="num mt-0.5 text-xs text-muted">{fmtInt(measuredSessionCount)} sessions</div>
             </div>
             <button
               type="button"

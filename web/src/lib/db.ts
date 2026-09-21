@@ -132,11 +132,12 @@ export async function deleteBatch(batchId: string): Promise<void> {
 }
 
 /**
- * Imports directly-measured sessions (the Claude Code hook's log). Each one is
- * keyed by its own externalRef (the hook's session_id), so re-dropping the same
- * log file after more sessions have accumulated only adds the new ones; a
- * session already stored is left as-is, since a finished measured session
- * never changes after the fact.
+ * Imports Claude Code sessions: the hook's measured log and the backfill's
+ * estimated history. Each one is keyed by its own externalRef, so re-dropping a
+ * log after more sessions have accumulated only adds the new ones. A stored
+ * measured session is left as-is, since a finished one never changes. An
+ * estimated one is replaced, because re-running the backfill can extend the
+ * most recent stretch of activity under the same start time.
  */
 export async function addMeasuredSessions(sessions: Session[]): Promise<{ added: number }> {
   const d = await db();
@@ -144,9 +145,10 @@ export async function addMeasuredSessions(sessions: Session[]): Promise<{ added:
   const store = tx.objectStore("measuredSessions");
   let added = 0;
   for (const s of sessions) {
-    if (await store.get(s.externalRef)) continue;
+    const existing = await store.get(s.externalRef);
+    if (existing && s.confidence === "measured") continue;
     await store.put(s);
-    added++;
+    if (!existing) added++;
   }
   await tx.done;
   return { added };
