@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { DEFAULT_CARD_CONFIG, buildCardData, sessionize, type ConversationRecord } from "@trackhour/core";
 import { createRateLimiter, handleCardRequest, type CardRequest, type ProfileStore, type StoredProfile } from "../src";
 
@@ -108,12 +108,15 @@ describe("handleCardRequest", () => {
     expect(res.body).toContain("Profile not found");
   });
 
-  it("never leaks store errors", async () => {
+  it("never leaks store errors to the response, but does log them server-side for diagnosis", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const store: ProfileStore = { getPublicProfile: async () => { throw new Error("password=hunter2 at db.internal"); } };
     const res = await handleCardRequest(get("/api/card?u=mark"), deps({ store }));
     expect(res.status).toBe(500);
     expect(res.body).not.toContain("hunter2");
     expect(res.body).not.toContain("db.internal");
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining("store.getPublicProfile"), expect.any(Error));
+    spy.mockRestore();
   });
 
   it("survives malformed stored data", async () => {

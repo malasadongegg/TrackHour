@@ -150,16 +150,19 @@ export async function handleCardRequest(req: CardRequest, deps: CardDeps): Promi
   let profile: StoredProfile | null;
   try {
     profile = await deps.store.getPublicProfile(id);
-  } catch {
-    return fail(500, "Card unavailable"); // never expose the store's error
+  } catch (e) {
+    // Logged server-side only (the host's own log viewer), never in the public response.
+    console.error("[card] store.getPublicProfile failed:", e);
+    return fail(500, "Card unavailable");
   }
   if (!profile) return fail(404, "Profile not found");
 
   let svg: string;
   try {
     svg = renderCard(resolveConfig(profile.config, params), toCardData(profile));
-  } catch {
-    return fail(500, "Card unavailable"); // e.g. malformed stored aggregates
+  } catch (e) {
+    console.error("[card] renderCard failed:", e); // e.g. malformed stored aggregates
+    return fail(500, "Card unavailable");
   }
 
   const etag = etagOf(svg);
