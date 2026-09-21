@@ -1,17 +1,26 @@
 import { defineConfig, loadEnv, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import type { createRateLimiter as CreateRateLimiter } from "@trackhour/card";
 
 /**
  * DEV ONLY: serves /api/card locally by running the exact same handler the
- * Vercel function uses, via Vite's ssrLoadModule (which transpiles the TS in
- * card/src on the fly, no build step needed). This exists purely so the card
- * embed can be tested against real Supabase data on localhost, without
- * `vercel dev` or a deployment. It never runs in `vite build` / production.
+ * Vercel function uses, so the card embed can be tested against real
+ * Supabase data on localhost, without `vercel dev` or a deployment. It never
+ * runs in `vite build` / production.
+ *
+ * Loads @trackhour/card with a plain dynamic import(), the same way Node
+ * loads it on Vercel, rather than through Vite's own ssrLoadModule transform.
+ * @trackhour/card and @trackhour/core are compiled to CommonJS (see their
+ * tsconfig.build.json) precisely so Node's runtime module loader, not just a
+ * bundler, can resolve them; ssrLoadModule assumes ESM source to transpile and
+ * gets confused loading compiled CJS transitively, so this bypasses it. Run
+ * `pnpm build:libs` (or `pnpm dev`, which does it for you) before `vite dev`
+ * if this 503s with "Cannot find module".
  */
 function localCardApi(env: Record<string, string>): Plugin {
   // Created once, reused across requests, matching how the Vercel function reuses it per instance.
-  let limiter: ReturnType<typeof import("../card/src").createRateLimiter> | null = null;
+  let limiter: ReturnType<typeof CreateRateLimiter> | null = null;
 
   return {
     name: "local-card-api",
@@ -20,7 +29,7 @@ function localCardApi(env: Record<string, string>): Plugin {
       server.middlewares.use(async (req, res, next) => {
         if (!req.url?.startsWith("/api/card")) return next();
         try {
-          const { createRateLimiter, createSupabaseStore, handleCardRequest } = await server.ssrLoadModule("../card/src/index.ts");
+          const { createRateLimiter, createSupabaseStore, handleCardRequest } = await import("@trackhour/card");
           const url = env.SUPABASE_URL || env.VITE_SUPABASE_URL;
           const anonKey = env.SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY;
           if (!url || !anonKey) {

@@ -4,11 +4,12 @@
   "version": "0.1.0",
   "description": "Steam profile stats, but for AI usage. Import your history, see your stats, design an embeddable card.",
   "scripts": {
-    "dev": "pnpm --filter @trackhour/web dev",
-    "build": "pnpm --filter @trackhour/web build",
+    "build:libs": "pnpm --filter @trackhour/core build && pnpm --filter @trackhour/card build",
+    "dev": "pnpm build:libs && pnpm --filter @trackhour/web dev",
+    "build": "pnpm build:libs && pnpm --filter @trackhour/web build",
     "preview": "pnpm --filter @trackhour/web preview",
-    "test": "pnpm -r test",
-    "typecheck": "pnpm -r typecheck"
+    "test": "pnpm build:libs && pnpm -r test",
+    "typecheck": "pnpm build:libs && pnpm -r typecheck"
   },
   "license": "MIT",
   "packageManager": "pnpm@12.5.1",

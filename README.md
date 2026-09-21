@@ -96,9 +96,13 @@ No environment variables are needed to run the app. Accounts are optional; see [
 2. Set **Root Directory** to `web`. The framework preset is detected as Vite.
 3. Leave **Include source files outside of the Root Directory** enabled (the default). The app imports `core/` and `card/` from the parent folder.
 4. Optional, to enable accounts and hosted cards, add environment variables (see [`supabase/README.md`](supabase/README.md)): `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` for the site, and `SUPABASE_URL` and `SUPABASE_ANON_KEY` for the `/api/card` function. All four are public values. **Never add the `service_role` key anywhere.**
-5. Deploy.
+5. Deploy. No Build Command override is needed: `web/package.json` has a `vercel-build` script (Vercel's own convention) that builds `core` and `card` before building the site.
 
 Without the variables it is a plain static site. [`web/vercel.json`](web/vercel.json) rewrites app routes (such as `/card` and `/account`) to `index.html`, leaves `/api` to the function, and sets the security headers described above. If the install step cannot see the workspace, set the Install Command to `cd .. && pnpm install --frozen-lockfile`.
+
+### Why `core` and `card` are compiled, not run as source
+
+`web/api/card.ts` runs as a real Vercel Node.js function, not through Vite. Node's own module loader executes it, and Node cannot run `.ts` files directly. So `core` and `card` each have a `build` script (`tsc -p tsconfig.build.json`) that compiles them to plain CommonJS in `dist/`, and their `package.json` points there. `pnpm build`, `pnpm test`, `pnpm typecheck` and `pnpm dev` all run `pnpm build:libs` first for this reason. If you add a new export to either package, `pnpm build:libs` (or any of those commands) picks it up automatically; you don't need to touch this by hand.
 
 ## Roadmap
 
