@@ -11,7 +11,7 @@ A Claude Code hook that measures your Claude Code session length and lines chang
 
 ## What it measures
 
-- **Session length**: from Claude Code's `SessionStart` event to its `SessionEnd` event. A session under a minute is floored to one minute, matching how imports floor short sessions.
+- **Active time, not open time**: the hook records when you send a message, when Claude finishes replying, and when an edit runs. A stretch of work continues while these are close together: up to 10 minutes between a finished reply and your next message, or up to 30 minutes while Claude is mid-reply (long builds and test runs). A longer silence ends the stretch. Each stretch becomes one session, and time you were away is never counted, so a terminal left open overnight is not a 12 hour session. A session under a minute is floored to one minute, matching how imports floor short sessions.
 - **Lines changed**: added and removed lines across `Edit`, `Write`, `MultiEdit` and `NotebookEdit` tool calls during the session. This is a length-based estimate (old lines plus new lines), not a real diff.
 - **Interactions**: how many of those edit-tool calls happened, stored as the session's `messageCount`, since a coding session has no real "messages" to count.
 
@@ -30,6 +30,12 @@ A Claude Code hook that measures your Claude Code session length and lines chang
        "SessionStart": [
          { "hooks": [{ "type": "command", "command": "node C:/absolute/path/to/hook.mjs", "async": true }] }
        ],
+       "UserPromptSubmit": [
+         { "hooks": [{ "type": "command", "command": "node C:/absolute/path/to/hook.mjs", "async": true }] }
+       ],
+       "Stop": [
+         { "hooks": [{ "type": "command", "command": "node C:/absolute/path/to/hook.mjs", "async": true }] }
+       ],
        "PostToolUse": [
          {
            "matcher": "Edit|Write|MultiEdit|NotebookEdit",
@@ -43,7 +49,9 @@ A Claude Code hook that measures your Claude Code session length and lines chang
    }
    ```
 
-   Replace the path with your real one from step 1. `async: true` on `SessionStart` and `PostToolUse` means the hook never adds felt latency to your actual work; `SessionEnd` stays synchronous so its write reliably finishes before Claude Code exits.
+   Replace the path with your real one from step 1. `async: true` on every event except `SessionEnd` means the hook never adds felt latency to your actual work; `SessionEnd` stays synchronous so its write reliably finishes before Claude Code exits.
+
+   Without the `UserPromptSubmit` and `Stop` entries the hook only sees session starts and edits, so chatting without editing files is not counted. Install all of them for accurate hours.
 
 4. Start a new Claude Code session. When it ends, check that `~/.trackhour/claude-code-sessions.json` was created.
 
@@ -74,6 +82,7 @@ If you've never imported Claude Code data any other way, this is simply additive
 
 ## Known limits
 
+- A long session can appear as several sessions in TrackHour, one per stretch of activity.
 - No live sync: you re-drop the log file to update your dashboard/card, the same as re-importing an export.
 - "Lines changed" is a length estimate, not a real line-by-line diff.
 - If Claude Code is closed uncleanly (crash, force-quit) without a `SessionEnd` firing, that session is never recorded. It is not lost forever: the next `SessionStart` for a genuinely new session starts fresh, and the incomplete one is simply never logged.
