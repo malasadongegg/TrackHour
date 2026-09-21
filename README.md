@@ -2,7 +2,7 @@
 
 **Steam profile stats, but for AI usage.** Import your ChatGPT and Claude history, see how long you have really spent with each tool, design a card, and embed it anywhere images render: a GitHub README, a portfolio, Notion, your own site. Same genre as github-readme-stats and WakaTime badges.
 
-**Live site:** https://your-project.vercel.app
+**Live site:** https://trackhour-seven.vercel.app
 
 ![Dashboard](docs/screenshots/dashboard.png)
 
