@@ -49,6 +49,8 @@ export {
   parseClaudeCodeLog,
   isExtensionLog,
   parseExtensionLog,
+  isSaneSpan,
+  MAX_SESSION_SPAN_MS,
   parseExport,
 } from "./parse";
 export type { ParsedMeasuredSessions } from "./parse";

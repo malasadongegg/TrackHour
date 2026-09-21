@@ -41,8 +41,11 @@ const HEAT_OPACITY = [0.2, 0.38, 0.58, 0.8, 1];
 
 const num = (n: number) => String(Math.round(n * 100) / 100);
 
+/** Characters XML 1.0 forbids outright (control codes, non-characters, lone surrogates). One of them makes the whole SVG unparseable. */
+const XML_ILLEGAL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+
 function esc(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+  return s.replace(XML_ILLEGAL, "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
 }
 
 function truncate(s: string, max: number): string {

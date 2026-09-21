@@ -35,6 +35,28 @@ export function isoToMs(v: unknown, now: number): number | null {
   return isPlausible(ms, now) ? ms : null;
 }
 
+/** No single logged session may be longer than this. Real ones are hours; a runaway or forged one is not credible. */
+export const MAX_SESSION_SPAN_MS = 7 * 24 * 3_600_000;
+
+/**
+ * True if a session's times are safe to chart: real dates (not 1970 or year
+ * 9999), start before end, and a believable length. Day and month bucketing loop
+ * over every day and month a session covers, so one impossible span used to
+ * freeze the whole app, and because it was stored, kept freezing it on every
+ * visit. Checked when a log is parsed AND when stored sessions are read back, so
+ * data saved before this check existed cannot hurt either.
+ */
+export function isSaneSpan(startedAt: number, endedAt: number, now: number, maxMs = MAX_SESSION_SPAN_MS): boolean {
+  return (
+    Number.isFinite(startedAt) &&
+    Number.isFinite(endedAt) &&
+    isPlausible(startedAt, now) &&
+    isPlausible(endedAt, now) &&
+    endedAt >= startedAt &&
+    endedAt - startedAt <= maxMs
+  );
+}
+
 export function asString(v: unknown): string | undefined {
   return typeof v === "string" && v !== "" ? v : undefined;
 }

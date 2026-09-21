@@ -19,7 +19,7 @@
  * marker alone, never from anything an individual entry claims.
  */
 import type { Session } from "../types";
-import { isObj } from "./util";
+import { isObj, isSaneSpan } from "./util";
 
 const isFiniteNumber = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 
@@ -52,14 +52,14 @@ function isValidEntry(v: unknown): v is Session {
   );
 }
 
-export function parseClaudeCodeLog(json: unknown): ParsedMeasuredSessions {
+export function parseClaudeCodeLog(json: unknown, now = Date.now()): ParsedMeasuredSessions {
   if (!isClaudeCodeLog(json)) return { sessions: [], skipped: 0 };
   const raw = (json as { sessions: unknown[] }).sessions;
   const measured = (json as { source: string }).source === HOOK_SOURCE;
   const sessions: Session[] = [];
   let skipped = 0;
   for (const item of raw) {
-    if (!isValidEntry(item)) {
+    if (!isValidEntry(item) || !isSaneSpan(item.startedAt, item.endedAt, now)) {
       skipped++;
       continue;
     }
@@ -70,7 +70,8 @@ export function parseClaudeCodeLog(json: unknown): ParsedMeasuredSessions {
       toolKey: "claude_code",
       startedAt: item.startedAt,
       endedAt: item.endedAt,
-      activeSeconds: item.activeSeconds,
+      // Recomputed from the times, never trusted from the file: totals and charts must agree.
+      activeSeconds: (item.endedAt - item.startedAt) / 1000,
       messageCount: item.messageCount,
       linesChanged: item.linesChanged,
       source: measured ? "code_hook" : "import",

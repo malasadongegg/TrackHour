@@ -8,6 +8,7 @@ export { parseChatGPT } from "./chatgpt";
 export { parseClaude } from "./claude";
 export { isClaudeCodeLog, parseClaudeCodeLog, type ParsedMeasuredSessions } from "./claudeCode";
 export { isExtensionLog, parseExtensionLog } from "./extension";
+export { isSaneSpan, MAX_SESSION_SPAN_MS } from "./util";
 
 /**
  * Detects the provider and parses. Returns null if the JSON is not a

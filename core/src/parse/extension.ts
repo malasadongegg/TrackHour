@@ -16,7 +16,7 @@
 import { BROWSER_TOOL_KEYS } from "../tools";
 import type { Session, ToolKey } from "../types";
 import type { ParsedMeasuredSessions } from "./claudeCode";
-import { isObj } from "./util";
+import { isObj, isSaneSpan } from "./util";
 
 const isFiniteNumber = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 
@@ -28,7 +28,7 @@ export function isExtensionLog(json: unknown): boolean {
   return isObj(json) && json.source === "trackhour-extension" && Array.isArray(json.sessions);
 }
 
-export function parseExtensionLog(json: unknown): ParsedMeasuredSessions {
+export function parseExtensionLog(json: unknown, now = Date.now()): ParsedMeasuredSessions {
   if (!isExtensionLog(json)) return { sessions: [], skipped: 0 };
   const raw = (json as { sessions: unknown[] }).sessions;
   const sessions: Session[] = [];
@@ -40,7 +40,7 @@ export function parseExtensionLog(json: unknown): ParsedMeasuredSessions {
       !isFiniteNumber(item.startedAt) ||
       !isFiniteNumber(item.endedAt) ||
       item.endedAt <= item.startedAt ||
-      item.endedAt - item.startedAt > MAX_SESSION_MS ||
+      !isSaneSpan(item.startedAt, item.endedAt, now, MAX_SESSION_MS) ||
       typeof item.externalRef !== "string" ||
       item.externalRef.length === 0
     ) {
