@@ -132,7 +132,7 @@ export function AccountPage({ auth, sessions, records, now, timeZone, card }: Pr
         { user_id: user.id, slug: clean, is_public: isPublic, card_config: normalizeCardConfig(card), aggregates },
         { onConflict: "user_id" },
       )
-      .select("slug,is_public,updated_at")
+      .select("slug,is_public,updated_at,card_config")
       .single();
     setBusy(false);
     if (error) {
