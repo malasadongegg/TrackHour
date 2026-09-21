@@ -2,15 +2,18 @@
  * Vercel function: GET /api/card?u=<slug>
  *
  * A thin adapter. All logic (validation, caching, rate limiting, rendering)
- * lives in card/src and core/src. Relative imports are deliberate: the
- * function bundler follows them reliably, unlike TypeScript sources inside
- * node_modules.
+ * lives in card/src and core/src. Imported by PACKAGE NAME (@trackhour/card is
+ * a real dependency of web, see package.json), not by a raw relative path: a
+ * relative path that reaches outside web/ is unreliable for Vercel's function
+ * bundler in a pnpm workspace, since it has to be traced across a package
+ * boundary and its own node_modules symlinks. A normal dependency resolves the
+ * same way this app's other imports already do.
  *
  * Needs two environment variables in Vercel (server side only):
  *   SUPABASE_URL       your project URL
  *   SUPABASE_ANON_KEY  the public anon key (row level security limits it to public profiles)
  */
-import { createRateLimiter, createSupabaseStore, handleCardRequest } from "../../card/src";
+import { createRateLimiter, createSupabaseStore, handleCardRequest } from "@trackhour/card";
 
 interface Req {
   method?: string;
@@ -53,5 +56,3 @@ export default async function handler(req: Req, res: Res): Promise<void> {
   for (const [name, value] of Object.entries(result.headers)) res.setHeader(name, value);
   res.end(result.body);
 }
-
-declare const process: { env: Record<string, string | undefined> };
