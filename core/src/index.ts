@@ -47,6 +47,8 @@ export {
   parseClaude,
   isClaudeCodeLog,
   parseClaudeCodeLog,
+  isExtensionLog,
+  parseExtensionLog,
   parseExport,
 } from "./parse";
 export type { ParsedMeasuredSessions } from "./parse";

@@ -1,27 +1,46 @@
-import type { ImportBatch } from "@trackhour/core";
+import type { ImportBatch, Session } from "@trackhour/core";
 import { fmtDate, fmtInt } from "../lib/format";
 import { TOOL_META } from "../lib/tools";
 
 interface Props {
   batches: ImportBatch[];
   totalConversations: number;
-  measuredSessionCount: number;
+  sessions: Session[];
   timeZone: string;
   onDelete: (batch: ImportBatch) => void;
-  onDeleteMeasured: () => void;
+  onDeleteSessions: (toolKey: Session["toolKey"], source: Session["source"]) => void;
   onWipe: () => void;
 }
 
-export function DataManager({ batches, totalConversations, measuredSessionCount, timeZone, onDelete, onDeleteMeasured, onWipe }: Props) {
+const SOURCE_LABEL: Partial<Record<Session["source"], string>> = {
+  code_hook: "measured by the Claude Code hook",
+  import: "estimated from local Claude Code logs",
+  extension: "measured by the browser extension",
+};
+
+/** Stored sessions grouped by tool and source, so each can be deleted on its own. */
+function groupSessions(sessions: Session[]) {
+  const groups = new Map<string, { toolKey: Session["toolKey"]; source: Session["source"]; count: number }>();
+  for (const s of sessions) {
+    const key = `${s.toolKey}|${s.source}`;
+    const g = groups.get(key) ?? { toolKey: s.toolKey, source: s.source, count: 0 };
+    g.count++;
+    groups.set(key, g);
+  }
+  return [...groups.values()];
+}
+
+export function DataManager({ batches, totalConversations, sessions, timeZone, onDelete, onDeleteSessions, onWipe }: Props) {
+  const groups = groupSessions(sessions);
   return (
     <div>
       <p className="mb-3 text-sm text-muted">
         Stored in this browser only (IndexedDB): <span className="num text-ink">{fmtInt(totalConversations)}</span> conversations from{" "}
         <span className="num text-ink">{batches.length}</span> {batches.length === 1 ? "import" : "imports"}
-        {measuredSessionCount > 0 && (
+        {sessions.length > 0 && (
           <>
-            , and <span className="num text-ink">{fmtInt(measuredSessionCount)}</span> Claude Code{" "}
-            {measuredSessionCount === 1 ? "session" : "sessions"}
+            , and <span className="num text-ink">{fmtInt(sessions.length)}</span> tracked{" "}
+            {sessions.length === 1 ? "session" : "sessions"}
           </>
         )}
         . Nothing is sent anywhere.
@@ -48,25 +67,27 @@ export function DataManager({ batches, totalConversations, measuredSessionCount,
             </button>
           </li>
         ))}
-        {measuredSessionCount > 0 && (
-          <li className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
+        {groups.map((g) => (
+          <li key={`${g.toolKey}|${g.source}`} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full" style={{ background: TOOL_META.claude_code.color }} aria-hidden="true" />
-                <span className="font-medium text-white">{TOOL_META.claude_code.label}</span>
-                <span className="truncate text-muted">from local Claude Code logs</span>
+                <span className="h-2.5 w-2.5 rounded-full" style={{ background: TOOL_META[g.toolKey].color }} aria-hidden="true" />
+                <span className="font-medium text-white">{TOOL_META[g.toolKey].label}</span>
+                <span className="truncate text-muted">{SOURCE_LABEL[g.source] ?? "tracked sessions"}</span>
               </div>
-              <div className="num mt-0.5 text-xs text-muted">{fmtInt(measuredSessionCount)} sessions</div>
+              <div className="num mt-0.5 text-xs text-muted">
+                {fmtInt(g.count)} {g.count === 1 ? "session" : "sessions"}
+              </div>
             </div>
             <button
               type="button"
-              onClick={onDeleteMeasured}
+              onClick={() => onDeleteSessions(g.toolKey, g.source)}
               className="rounded border border-line px-3 py-1.5 text-xs text-ink hover:border-danger hover:text-danger"
             >
               Delete sessions
             </button>
           </li>
-        )}
+        ))}
       </ul>
       <div className="mt-4">
         <button

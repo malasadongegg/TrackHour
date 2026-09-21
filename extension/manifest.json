@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "TrackHour",
+  "version": "0.1.0",
+  "description": "Measures how long you are actively using Claude and ChatGPT in the browser. Runs only on your machine and never reads your chats.",
+  "permissions": ["storage"],
+  "background": {
+    "service_worker": "src/background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://claude.ai/*", "https://chatgpt.com/*"],
+      "js": ["src/content-tracker.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://trackhour-seven.vercel.app/*", "http://localhost:5173/*"],
+      "js": ["src/content-bridge.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "TrackHour",
+    "default_popup": "src/popup.html"
+  }
+}

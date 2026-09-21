@@ -9,7 +9,7 @@ const COPY: Record<ShownConfidence, { label: string; title: string }> = {
   },
   measured: {
     label: "Measured",
-    title: "Measured directly (for example by the Claude Code hook), not estimated from timestamps.",
+    title: "Measured directly (by the Claude Code hook or the browser extension), not estimated from timestamps.",
   },
   mixed: {
     label: "Estimated + Measured",

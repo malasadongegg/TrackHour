@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>TrackHour</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <h1>TrackHour</h1>
+    <p class="sub" id="state">Loading</p>
+
+    <table>
+      <thead>
+        <tr><th></th><th>Today</th><th>All time</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Claude</td><td id="claude-today">0m</td><td id="claude-all">0m</td></tr>
+        <tr><td>ChatGPT</td><td id="chatgpt-today">0m</td><td id="chatgpt-all">0m</td></tr>
+      </tbody>
+    </table>
+    <p class="note" id="count"></p>
+
+    <div class="row">
+      <button id="pause" type="button">Pause tracking</button>
+      <button id="export" type="button">Export file</button>
+    </div>
+    <button id="clear" type="button" class="danger">Delete all tracked time</button>
+
+    <p class="note">
+      Counts only time you are active in a focused tab. Never reads your chats. Open the TrackHour site and it imports
+      this automatically.
+    </p>
+    <script src="popup.js"></script>
+  </body>
+</html>

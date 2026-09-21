@@ -9,17 +9,20 @@ import {
   dayKey,
   dedupeRecords,
   isClaudeCodeLog,
+  isExtensionLog,
   monthlyHours,
   normalizeCardConfig,
   describeShape,
   detectManifest,
   parseClaudeCodeLog,
+  parseExtensionLog,
   parseExport,
   sessionize,
   type CardConfig,
   type ImportBatch,
   type ImportPreview as Preview,
   type ParsedExport,
+  type Session,
   type SessionizeOptions,
   type ToolKey,
 } from "@trackhour/core";
@@ -39,10 +42,11 @@ import {
   requestPersistence,
   saveCard,
   saveOptions,
+  deleteSessions,
   wipeAll,
-  wipeMeasuredSessions,
   type Library,
 } from "./lib/db";
+import { requestExtensionLog } from "./lib/extensionBridge";
 import { fmtInt } from "./lib/format";
 import { ALL_COLOR, TOOL_META } from "./lib/tools";
 import { readExport } from "./lib/zip";
@@ -67,7 +71,7 @@ interface Pending {
 
 type Report =
   | { kind: "import"; toolKey: ToolKey; added: number; updated: number; unchanged: number }
-  | { kind: "measured"; added: number; alreadyStored: number; estimated: boolean };
+  | { kind: "measured"; label: string; added: number; alreadyStored: number; estimated: boolean };
 
 export function App() {
   const [library, setLibrary] = useState<Library | null>(null);
@@ -107,6 +111,42 @@ export function App() {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  // Pull in time the browser extension has measured, if it is installed. Runs when the app opens and
+  // whenever the tab comes back into view, since that is when new browsing time will have piled up.
+  const libraryReady = library !== null;
+  useEffect(() => {
+    if (!libraryReady) return;
+    let cancelled = false;
+    let running = false;
+    async function pull() {
+      if (running) return;
+      running = true;
+      try {
+        const log = await requestExtensionLog();
+        if (cancelled || !isExtensionLog(log)) return;
+        const { sessions } = parseExtensionLog(log);
+        if (sessions.length === 0) return;
+        const result = await addMeasuredSessions(sessions);
+        if (cancelled || result.added === 0) return;
+        await reload();
+        setReport({ kind: "measured", label: "Browser extension", added: result.added, alreadyStored: sessions.length - result.added, estimated: false });
+      } catch {
+        // The extension is optional; a failed pull just means nothing new this time.
+      } finally {
+        running = false;
+      }
+    }
+    void pull();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void pull();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [libraryReady, reload]);
 
   const records = library?.records;
   const options = library?.options;
@@ -149,14 +189,18 @@ export function App() {
     setBusy(true);
     try {
       const json = await readExport(file);
-      if (isClaudeCodeLog(json)) {
-        const { sessions } = parseClaudeCodeLog(json);
-        if (sessions.length === 0) throw new Error("This looks like a Claude Code session log, but it has no usable sessions in it.");
+      if (isClaudeCodeLog(json) || isExtensionLog(json)) {
+        const fromExtension = isExtensionLog(json);
+        const { sessions } = fromExtension ? parseExtensionLog(json) : parseClaudeCodeLog(json);
+        if (sessions.length === 0) {
+          throw new Error(`This looks like a ${fromExtension ? "browser extension" : "Claude Code"} session log, but it has no usable sessions in it.`);
+        }
         const result = await addMeasuredSessions(sessions);
         void requestPersistence();
         await reload();
         setReport({
           kind: "measured",
+          label: fromExtension ? "Browser extension" : "Claude Code",
           added: result.added,
           alreadyStored: sessions.length - result.added,
           estimated: sessions.every((s) => s.confidence === "estimated"),
@@ -241,9 +285,9 @@ export function App() {
     await reload();
   }
 
-  async function removeMeasured() {
-    if (!window.confirm("Delete all Claude Code sessions measured by the hook? This cannot be undone. You can re-import the log file again.")) return;
-    await wipeMeasuredSessions();
+  async function removeSessions(toolKey: Session["toolKey"], source: Session["source"]) {
+    if (!window.confirm(`Delete these ${TOOL_META[toolKey].label} sessions? This cannot be undone. You can import the log file again.`)) return;
+    await deleteSessions(toolKey, source);
     setReport(null);
     await reload();
   }
@@ -288,7 +332,7 @@ export function App() {
       )}
       {report && report.kind === "measured" && (
         <Banner tone="ok" onClose={() => setReport(null)}>
-          Claude Code: <strong>{fmtInt(report.added)}</strong> new {report.estimated ? "estimated" : "measured"} {report.added === 1 ? "session" : "sessions"}.{" "}
+          {report.label}: <strong>{fmtInt(report.added)}</strong> new {report.estimated ? "estimated" : "measured"} {report.added === 1 ? "session" : "sessions"}.{" "}
           {report.alreadyStored > 0
             ? `${fmtInt(report.alreadyStored)} already recorded ${report.alreadyStored === 1 ? "session was" : "sessions were"} skipped.`
             : "No sessions were skipped."}
@@ -353,11 +397,11 @@ export function App() {
               </div>
             </div>
             <div className="rounded-lg border border-line bg-panel p-5">
-              <Heatmap days={days} color={viewColor} today={derived.today} />
+              <Heatmap days={days} color={viewColor} today={derived.today} confidence={derived.stats[activeView].confidence} />
             </div>
             <div className="rounded-lg border border-line bg-panel p-5">
               <h3 className="mb-3 text-sm font-semibold text-white">Monthly usage, {viewLabel}</h3>
-              <MonthlyBars months={months} color={viewColor} />
+              <MonthlyBars months={months} color={viewColor} confidence={derived.stats[activeView].confidence} />
             </div>
           </section>
 
@@ -373,10 +417,10 @@ export function App() {
             <DataManager
               batches={library.batches}
               totalConversations={library.records.length}
-              measuredSessionCount={library.measuredSessions.length}
+              sessions={library.measuredSessions}
               timeZone={timeZone}
               onDelete={removeBatch}
-              onDeleteMeasured={removeMeasured}
+              onDeleteSessions={removeSessions}
               onWipe={wipe}
             />
           </section>

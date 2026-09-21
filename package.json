@@ -8,7 +8,7 @@
     "dev": "pnpm build:libs && pnpm --filter @trackhour/web dev",
     "build": "pnpm build:libs && pnpm --filter @trackhour/web build",
     "preview": "pnpm --filter @trackhour/web preview",
-    "test": "pnpm build:libs && pnpm -r test",
+    "test": "pnpm build:libs && pnpm -r test && node --test extension/test/sessions.test.mjs",
     "typecheck": "pnpm build:libs && pnpm -r typecheck"
   },
   "license": "MIT",

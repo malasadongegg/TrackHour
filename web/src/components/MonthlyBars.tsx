@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { MonthBucket } from "@trackhour/core";
+import type { MonthBucket, ToolStats } from "@trackhour/core";
 import { fmtMonth, MONTHS_SHORT } from "../lib/format";
 import { useWidth } from "../lib/useWidth";
 import { TipLayer, useTip } from "./Tip";
@@ -7,7 +7,10 @@ import { TipLayer, useTip } from "./Tip";
 interface Props {
   months: MonthBucket[];
   color: string;
+  confidence: ToolStats["confidence"];
 }
+
+const NOUN: Record<ToolStats["confidence"], string> = { estimated: "Estimated", measured: "Measured", mixed: "Estimated and measured", manual: "Manual" };
 
 const PLOT_H = 140;
 const TOP = 22;
@@ -20,7 +23,8 @@ function barPath(x: number, y: number, w: number, h: number): string {
   return `M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z`;
 }
 
-export function MonthlyBars({ months, color }: Props) {
+export function MonthlyBars({ months, color, confidence }: Props) {
+  const noun = NOUN[confidence];
   const { tip, show, hide } = useTip();
   const { ref: box, width: avail } = useWidth<HTMLDivElement>();
   const [asTable, setAsTable] = useState(false);
@@ -45,7 +49,7 @@ export function MonthlyBars({ months, color }: Props) {
   return (
     <div ref={box}>
       <div className="mb-2 flex items-center justify-between text-xs text-muted">
-        <span>Estimated hours per month. Peak {max.toLocaleString("en-US", { maximumFractionDigits: 1 })} hrs.</span>
+        <span>{noun} hours per month. Peak {max.toLocaleString("en-US", { maximumFractionDigits: 1 })} hrs.</span>
         <button type="button" onClick={() => setAsTable((v) => !v)} className="rounded px-2 py-1 hover:text-ink" aria-pressed={asTable}>
           {asTable ? "Show chart" : "Show table"}
         </button>
@@ -57,7 +61,7 @@ export function MonthlyBars({ months, color }: Props) {
             <thead className="sticky top-0 bg-raised text-left text-xs text-muted">
               <tr>
                 <th className="px-3 py-1.5 font-medium">Month</th>
-                <th className="px-3 py-1.5 text-right font-medium">Estimated hours</th>
+                <th className="px-3 py-1.5 text-right font-medium">{noun} hours</th>
               </tr>
             </thead>
             <tbody>
@@ -72,7 +76,7 @@ export function MonthlyBars({ months, color }: Props) {
         </div>
       ) : (
         <div ref={scroller} className="overflow-x-auto">
-          <svg width={width} height={height} role="img" aria-label="Estimated hours per month" onMouseLeave={hide}>
+          <svg width={width} height={height} role="img" aria-label={`${noun} hours per month`} onMouseLeave={hide}>
             <line x1={0} x2={width} y1={TOP + PLOT_H} y2={TOP + PLOT_H} stroke="#2a3f55" />
             {months.map((m, i) => {
               const h = m.hours > 0 ? Math.max(3, (m.hours / max) * PLOT_H) : 0;

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { addDays, dayDiff, makeIntensity, startOfWeekKey, type DayBucket } from "@trackhour/core";
+import { addDays, dayDiff, makeIntensity, startOfWeekKey, type DayBucket, type ToolStats } from "@trackhour/core";
 import { fmtDay, fmtDuration, fmtHours, MONTHS_SHORT } from "../lib/format";
 import { useWidth } from "../lib/useWidth";
 import { TipLayer, useTip } from "./Tip";
@@ -8,7 +8,15 @@ interface Props {
   days: DayBucket[];
   color: string;
   today: string;
+  confidence: ToolStats["confidence"];
 }
+
+const SOURCE_NOTE: Record<ToolStats["confidence"], string> = {
+  estimated: "Estimated from message timestamps",
+  measured: "Measured from active time",
+  mixed: "Estimated and measured time",
+  manual: "Entered by hand",
+};
 
 const GAP = 3;
 const LEFT = 30;
@@ -21,7 +29,7 @@ const cellFill = (level: number, color: string) =>
   level === 0 ? EMPTY : `color-mix(in srgb, ${color} ${LEVEL_PCT[level]}%, #1e2d40)`;
 
 /** GitHub style contribution graph. Weeks run Monday to Sunday, top to bottom. */
-export function Heatmap({ days, color, today }: Props) {
+export function Heatmap({ days, color, today, confidence }: Props) {
   const { tip, show, hide } = useTip();
   const { ref: box, width: avail } = useWidth<HTMLDivElement>();
   const years = useMemo(() => [...new Set(days.map((d) => d.day.slice(0, 4)))].sort().reverse(), [days]);
@@ -130,7 +138,7 @@ export function Heatmap({ days, color, today }: Props) {
       </div>
 
       <div className="mt-2 flex items-center justify-between gap-3 text-xs text-muted">
-        <span>Estimated from message timestamps</span>
+        <span>{SOURCE_NOTE[confidence]}</span>
         <span className="flex items-center gap-1.5" aria-hidden="true">
           Less
           {[0, 1, 2, 3, 4].map((l) => (

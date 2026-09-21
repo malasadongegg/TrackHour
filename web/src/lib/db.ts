@@ -154,9 +154,15 @@ export async function addMeasuredSessions(sessions: Session[]): Promise<{ added:
   return { added };
 }
 
-export async function wipeMeasuredSessions(): Promise<void> {
+/** Deletes the stored sessions of one tool that came from one source (hook, backfill or extension). */
+export async function deleteSessions(toolKey: Session["toolKey"], source: Session["source"]): Promise<void> {
   const d = await db();
-  await d.clear("measuredSessions");
+  const tx = d.transaction("measuredSessions", "readwrite");
+  const store = tx.objectStore("measuredSessions");
+  for (const s of await store.getAll()) {
+    if (s.toolKey === toolKey && s.source === source) await store.delete(s.externalRef);
+  }
+  await tx.done;
 }
 
 /** Deletes every import. Keeps the estimation and card settings. */
