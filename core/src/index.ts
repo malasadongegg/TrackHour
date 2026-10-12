@@ -26,7 +26,7 @@ export type {
 
 export { dayKey, startOfDay, nextDayStart, addDays, dayDiff, weekdayOf, startOfWeekKey, monthOf, yearOf } from "./dates";
 
-export { WEEKDAYS, MONTHS_SHORT, MONTHS_LONG, fmtInt, fmtHours, fmtDuration, fmtDate, fmtDay, fmtMonth } from "./format";
+export { WEEKDAYS, MONTHS_SHORT, MONTHS_LONG, fmtInt, fmtHours, fmtDuration, fmtDate, fmtDay, fmtMonth, fmtTokens } from "./format";
 
 export { makeIntensity } from "./heat";
 export type { HeatLevel } from "./heat";
@@ -36,6 +36,9 @@ export { TOOL_LABELS, TOOL_COLORS, TOOL_HOSTS, BROWSER_TOOL_KEYS, ALL_TOOLS_COLO
 export { DEFAULT_OPTIONS, resolveOptions, sessionize, combineSessions } from "./sessionize";
 
 export { dailySeconds, dailyMinutes, monthlyHours, computeStreaks, computeStats } from "./stats";
+
+export { aggregateClaudeCodeUsage } from "./claudeCodeUsage";
+export type { ModelUsage, DayUsage, ClaudeCodeUsageStats, RawTurn, AggregateOptions } from "./claudeCodeUsage";
 
 export { recordKey, isRicher, dedupeRecords, buildPreview } from "./importing";
 
@@ -49,6 +52,8 @@ export {
   parseClaudeCodeLog,
   isExtensionLog,
   parseExtensionLog,
+  isClaudeCodeUsageLog,
+  parseClaudeCodeUsageLog,
   isSaneSpan,
   MAX_SESSION_SPAN_MS,
   parseExport,

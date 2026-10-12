@@ -20,8 +20,9 @@
  * estimated character budget instead.
  */
 
+import type { ClaudeCodeUsageStats } from "../claudeCodeUsage";
 import { addDays, dayKey, startOfWeekKey } from "../dates";
-import { fmtDate, fmtHours } from "../format";
+import { fmtDate, fmtHours, fmtInt, fmtTokens } from "../format";
 import { makeIntensity } from "../heat";
 import { TOOL_COLORS, TOOL_LABELS } from "../tools";
 import { TOOL_KEYS, type Confidence, type DayBucket, type ToolKey, type ToolStats } from "../types";
@@ -160,6 +161,9 @@ export function renderCard(configInput: CardConfig, data: CardData): string {
       y = drawDetailed(body, ctx, y);
     }
     if (hasData && config.showHeatmap) y = drawHeatmap(body, tools.map((k) => data.daysByTool[k] ?? []), colors, data.generatedAt, data.timeZone, y);
+    // Independent of hasData/tools: this is Claude Code token usage from a local transcript scan, a
+    // different metric entirely, so it can appear even on a card with no session data selected.
+    if (config.showClaudeCodeUsage && data.claudeCodeUsage) y = drawClaudeCodeUsage(body, data.claudeCodeUsage, colors, hasData, y);
 
     y += 6;
     if (footnote) body.push(text(PAD, y + 14, footnote, { size: 10, fill: colors.muted }));
@@ -342,6 +346,57 @@ function drawShowcase(body: string[], c: Ctx, top: number): number {
   });
   if (tiles.length) y += Math.ceil(tiles.length / TILE_COLS) * (TILE_H + TILE_GAP);
   return y;
+}
+
+// ---------------------------------------------------------------------------
+// Claude Code token usage, from a local transcript scan (claude-code-hook/
+// scan-usage.mjs). A different metric from everything above (tokens, not
+// time), on its own heading, so it is never confused with session data or
+// summed into the combined hours. Output tokens are always the headline, never
+// the raw total, since on a typical account roughly 95% of total tokens are
+// cache reads, not generated output.
+// ---------------------------------------------------------------------------
+
+function drawClaudeCodeUsage(body: string[], u: ClaudeCodeUsageStats, colors: CardColors, afterOtherContent: boolean, top: number): number {
+  let y = top + 10;
+  if (afterOtherContent) {
+    body.push(line(PAD, y - 8, CARD_WIDTH - PAD, colors.muted, 0.2));
+    y += 8;
+  }
+  body.push(text(PAD, y + 8, "CLAUDE CODE, LOCAL SCAN", { size: 10, weight: 600, fill: colors.muted, spacing: 1.2 }));
+  y += 24;
+
+  if (u.messageCount === 0) {
+    body.push(text(PAD, y + 4, "No usage data yet", { size: 12, fill: colors.muted }));
+    return y + 20;
+  }
+
+  const topModel = Object.entries(u.byModel).sort((a, b) => b[1].outputTokens - a[1].outputTokens)[0]?.[0];
+  body.push(
+    `<text x="${PAD}" y="${num(y + 26)}" font-size="28" font-weight="700" fill="${colors.text}">${esc(fmtTokens(u.usage.outputTokens))}` +
+      `<tspan font-size="11" font-weight="400" fill="${colors.muted}" dx="6">output tokens</tspan></text>`,
+  );
+  const cachePct = u.usage.totalTokens ? Math.round((u.usage.cacheReadTokens / u.usage.totalTokens) * 100) : 0;
+  body.push(
+    text(PAD, y + 42, `${fmtTokens(u.usage.totalTokens)} total, ${cachePct}% from cache${topModel ? `  ·  mostly ${truncate(topModel, 20)}` : ""}`, {
+      size: 10,
+      fill: colors.muted,
+    }),
+  );
+  y += 54;
+
+  const tiles: Array<[string, string]> = [
+    [fmtInt(u.sessionCount), "Sessions"],
+    [fmtInt(u.messageCount), "Messages"],
+    [fmtInt(u.activeDays), "Active days"],
+  ];
+  const colWidth = INNER / 3;
+  tiles.forEach(([value, label], idx) => {
+    const x = PAD + idx * colWidth;
+    body.push(text(x, y + 14, value, { size: 15, weight: 600, fill: colors.text }));
+    body.push(text(x, y + 28, label, { size: 10, fill: colors.muted }));
+  });
+  return y + 36;
 }
 
 // ---------------------------------------------------------------------------

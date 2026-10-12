@@ -4,6 +4,7 @@ import {
   normalizeCardConfig,
   toAggregates,
   type CardConfig,
+  type ClaudeCodeUsageStats,
   type ConversationRecord,
   type Session,
 } from "@trackhour/core";
@@ -17,6 +18,7 @@ interface Props {
   now: number;
   timeZone: string;
   card: CardConfig;
+  claudeCodeUsage: ClaudeCodeUsageStats | null;
 }
 
 interface Saved {
@@ -40,7 +42,7 @@ function suggestSlug(name: unknown): string {
   return s.length >= 3 ? s : "";
 }
 
-export function AccountPage({ auth, sessions, records, now, timeZone, card }: Props) {
+export function AccountPage({ auth, sessions, records, now, timeZone, card, claudeCodeUsage }: Props) {
   const { user } = auth;
   const [saved, setSaved] = useState<Saved | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -54,17 +56,17 @@ export function AccountPage({ auth, sessions, records, now, timeZone, card }: Pr
   const [previewNonce, setPreviewNonce] = useState(0);
   // A browser with nothing imported (a new device, cleared storage) has no totals to upload. Saving from there must
   // never replace the totals already on the server with an empty set.
-  const hasLocalData = sessions.length > 0 || records.length > 0;
+  const hasLocalData = sessions.length > 0 || records.length > 0 || claudeCodeUsage !== null;
 
   // The exact payload that would be uploaded. Computed in the browser and shown before saving.
   // card.tools is a fresh array every render (normalizeCardConfig always rebuilds it), so this
   // depends on its contents rather than the array itself; see the matching note in CardPage.
   const toolsKey = card.tools.join(",");
-  const aggregates = useMemo(
-    () => toAggregates(buildCardData(sessions, records, { now, timeZone }, card.tools)),
+  const aggregates = useMemo(() => {
+    const data = buildCardData(sessions, records, { now, timeZone }, card.tools);
+    return toAggregates(claudeCodeUsage ? { ...data, claudeCodeUsage } : data);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- toolsKey stands in for card.tools on purpose
-    [sessions, records, now, timeZone, toolsKey],
-  );
+  }, [sessions, records, now, timeZone, toolsKey, claudeCodeUsage]);
   const payload = useMemo(() => JSON.stringify({ card_config: card, aggregates }, null, 2), [card, aggregates]);
 
   useEffect(() => {

@@ -1,14 +1,16 @@
-import type { ImportBatch, Session } from "@trackhour/core";
-import { fmtDate, fmtInt } from "../lib/format";
+import type { ClaudeCodeUsageStats, ImportBatch, Session } from "@trackhour/core";
+import { fmtDate, fmtInt, fmtTokens } from "../lib/format";
 import { TOOL_META } from "../lib/tools";
 
 interface Props {
   batches: ImportBatch[];
   totalConversations: number;
   sessions: Session[];
+  claudeCodeUsage: ClaudeCodeUsageStats | null;
   timeZone: string;
   onDelete: (batch: ImportBatch) => void;
   onDeleteSessions: (toolKey: Session["toolKey"], source: Session["source"]) => void;
+  onDeleteClaudeCodeUsage: () => void;
   onWipe: () => void;
 }
 
@@ -30,7 +32,7 @@ function groupSessions(sessions: Session[]) {
   return [...groups.values()];
 }
 
-export function DataManager({ batches, totalConversations, sessions, timeZone, onDelete, onDeleteSessions, onWipe }: Props) {
+export function DataManager({ batches, totalConversations, sessions, claudeCodeUsage, timeZone, onDelete, onDeleteSessions, onDeleteClaudeCodeUsage, onWipe }: Props) {
   const groups = groupSessions(sessions);
   return (
     <div>
@@ -88,6 +90,27 @@ export function DataManager({ batches, totalConversations, sessions, timeZone, o
             </button>
           </li>
         ))}
+        {claudeCodeUsage && (
+          <li className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ background: TOOL_META.claude_code.color }} aria-hidden="true" />
+                <span className="font-medium text-white">Claude Code, local scan</span>
+                <span className="truncate text-muted">token usage from scan-usage.mjs</span>
+              </div>
+              <div className="num mt-0.5 text-xs text-muted">
+                {fmtTokens(claudeCodeUsage.usage.outputTokens)} output tokens, scanned {fmtDate(claudeCodeUsage.generatedAt, timeZone)}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onDeleteClaudeCodeUsage}
+              className="rounded border border-line px-3 py-1.5 text-xs text-ink hover:border-danger hover:text-danger"
+            >
+              Delete scan
+            </button>
+          </li>
+        )}
       </ul>
       <div className="mt-4">
         <button

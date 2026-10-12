@@ -49,5 +49,12 @@ export function toAggregates(data: CardData): ProfileAggregates {
     const days = data.daysByTool[k];
     if (days) daysByTool[k] = days.filter((d) => d.day >= cutoff).map((d) => ({ day: d.day, minutes: Math.round(d.minutes * 10) / 10 }));
   }
-  return { timeZone: data.timeZone, updatedAt: data.generatedAt, all: data.all, byTool: data.byTool, daysByTool };
+  return {
+    timeZone: data.timeZone,
+    updatedAt: data.generatedAt,
+    all: data.all,
+    byTool: data.byTool,
+    daysByTool,
+    ...(data.claudeCodeUsage ? { claudeCodeUsage: data.claudeCodeUsage } : {}),
+  };
 }

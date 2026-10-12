@@ -23,6 +23,7 @@ export const DEFAULT_CARD_CONFIG: CardConfig = {
   showCombined: true,
   stats: ["hoursOnRecord", "lastUsed", "sessions", "conversations", "messages", "avgSession", "currentStreak", "longestStreak"],
   showHeatmap: true,
+  showClaudeCodeUsage: true,
 };
 
 const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
@@ -87,5 +88,6 @@ export function normalizeCardConfig(input: unknown): CardConfig {
     showCombined: typeof src.showCombined === "boolean" ? src.showCombined : DEFAULT_CARD_CONFIG.showCombined,
     stats: pick<CardStatKey>(src.stats, CARD_STAT_KEYS, [...DEFAULT_CARD_CONFIG.stats]),
     showHeatmap: typeof src.showHeatmap === "boolean" ? src.showHeatmap : DEFAULT_CARD_CONFIG.showHeatmap,
+    showClaudeCodeUsage: typeof src.showClaudeCodeUsage === "boolean" ? src.showClaudeCodeUsage : DEFAULT_CARD_CONFIG.showClaudeCodeUsage,
   };
 }

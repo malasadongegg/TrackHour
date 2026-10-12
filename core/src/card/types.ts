@@ -1,3 +1,4 @@
+import type { ClaudeCodeUsageStats } from "../claudeCodeUsage";
 import type { DayBucket, ToolKey, ToolStats } from "../types";
 
 export const LAYOUT_VARIANTS = ["compact", "detailed", "showcase"] as const;
@@ -55,6 +56,8 @@ export interface CardConfig {
   stats: CardStatKey[];
   /** Mini contribution graph. Detailed layout only. */
   showHeatmap: boolean;
+  /** Drawn only when the profile actually has a scanned Claude Code usage snapshot. */
+  showClaudeCodeUsage: boolean;
 }
 
 /**
@@ -69,6 +72,14 @@ export interface CardData {
   all: ToolStats;
   byTool: Partial<Record<ToolKey, ToolStats>>;
   daysByTool: Partial<Record<ToolKey, DayBucket[]>>;
+  /**
+   * A local scan of Claude Code's own transcripts (claude-code-hook/scan-usage.mjs),
+   * imported separately from session data. Token usage, not time, and entirely
+   * unrelated to `all`/`byTool`: it is never summed into the combined hours, since
+   * it describes the SAME Claude Code activity the `claude_code` tool already
+   * reports in hours, just as tokens instead.
+   */
+  claudeCodeUsage?: ClaudeCodeUsageStats;
 }
 
 /**
@@ -83,4 +94,5 @@ export interface ProfileAggregates {
   all: ToolStats;
   byTool: Partial<Record<ToolKey, ToolStats>>;
   daysByTool: Partial<Record<ToolKey, DayBucket[]>>;
+  claudeCodeUsage?: ClaudeCodeUsageStats;
 }

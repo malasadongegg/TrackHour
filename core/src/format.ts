@@ -28,6 +28,15 @@ export function fmtHours(seconds: number): string {
   return (seconds / 3600).toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 }
 
+/** "5.1B", "12.0M", "842K", "73" for a token count, so a hero number never prints a 10 digit integer. */
+export function fmtTokens(n: number): string {
+  const v = Math.max(0, n);
+  if (v >= 1e9) return `${(v / 1e9).toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}B`;
+  if (v >= 1e6) return `${(v / 1e6).toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M`;
+  if (v >= 1e3) return `${(v / 1e3).toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}K`;
+  return fmtInt(Math.round(v));
+}
+
 /** "1h 23m", "12m", "45s". */
 export function fmtDuration(seconds: number): string {
   const s = Math.round(seconds);

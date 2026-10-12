@@ -18,6 +18,7 @@ import { TOOL_META } from "../../lib/tools";
 interface Props {
   config: CardConfig;
   toolsWithData: ToolKey[];
+  hasClaudeCodeUsage: boolean;
   onChange: (patch: Partial<CardConfig>) => void;
   onReset: () => void;
 }
@@ -96,7 +97,7 @@ function ColorField({ label, value, onChange }: { label: string; value: string; 
   );
 }
 
-export function CardControls({ config, toolsWithData, onChange, onReset }: Props) {
+export function CardControls({ config, toolsWithData, hasClaudeCodeUsage, onChange, onReset }: Props) {
   const setColor = (key: keyof CardColors) => (hex: string) =>
     onChange({ theme: "custom", colors: { ...config.colors, [key]: hex } });
 
@@ -197,6 +198,14 @@ export function CardControls({ config, toolsWithData, onChange, onReset }: Props
           )}
         </Check>
       </Section>
+
+      {hasClaudeCodeUsage && (
+        <Section title="Claude Code">
+          <Check checked={config.showClaudeCodeUsage} disabled={config.layout === "compact"} onChange={(v) => onChange({ showClaudeCodeUsage: v })}>
+            Local token usage {config.layout === "compact" && <span className="text-muted">(not in compact)</span>}
+          </Check>
+        </Section>
+      )}
 
       <Section title="Stats">
         <div className="flex gap-3 text-xs">

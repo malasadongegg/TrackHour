@@ -9,6 +9,7 @@ import {
   dayKey,
   dedupeRecords,
   isClaudeCodeLog,
+  isClaudeCodeUsageLog,
   isExtensionLog,
   isSaneSpan,
   monthlyHours,
@@ -16,10 +17,12 @@ import {
   describeShape,
   detectManifest,
   parseClaudeCodeLog,
+  parseClaudeCodeUsageLog,
   parseExtensionLog,
   parseExport,
   sessionize,
   type CardConfig,
+  type ClaudeCodeUsageStats,
   type ImportBatch,
   type ImportPreview as Preview,
   type ParsedExport,
@@ -28,6 +31,7 @@ import {
   type ToolKey,
   type ToolStats,
 } from "@trackhour/core";
+import { ClaudeCodeUsagePanel } from "./components/ClaudeCodeUsagePanel";
 import { DataManager } from "./components/DataManager";
 import { Dropzone } from "./components/Dropzone";
 import { Heatmap } from "./components/Heatmap";
@@ -40,9 +44,11 @@ import {
   addImport,
   addMeasuredSessions,
   deleteBatch,
+  deleteClaudeCodeUsage,
   loadLibrary,
   requestPersistence,
   saveCard,
+  saveClaudeCodeUsage,
   saveOptions,
   deleteSessions,
   wipeAll,
@@ -81,7 +87,8 @@ interface Pending {
 
 type Report =
   | { kind: "import"; toolKey: ToolKey; added: number; updated: number; unchanged: number }
-  | { kind: "measured"; label: string; added: number; alreadyStored: number; estimated: boolean };
+  | { kind: "measured"; label: string; added: number; alreadyStored: number; estimated: boolean }
+  | { kind: "claudeCodeUsage"; stats: ClaudeCodeUsageStats };
 
 export function App() {
   const [library, setLibrary] = useState<Library | null>(null);
@@ -201,6 +208,15 @@ export function App() {
     setBusy(true);
     try {
       const json = await readExport(file);
+      if (isClaudeCodeUsageLog(json)) {
+        const stats = parseClaudeCodeUsageLog(json);
+        if (!stats || stats.messageCount === 0) throw new Error("This looks like a Claude Code usage scan, but it has no usable data in it.");
+        await saveClaudeCodeUsage(stats);
+        void requestPersistence();
+        await reload();
+        setReport({ kind: "claudeCodeUsage", stats });
+        return;
+      }
       if (isClaudeCodeLog(json) || isExtensionLog(json)) {
         const fromExtension = isExtensionLog(json);
         const { sessions } = fromExtension ? parseExtensionLog(json) : parseClaudeCodeLog(json);
@@ -304,6 +320,13 @@ export function App() {
     await reload();
   }
 
+  async function removeClaudeCodeUsage() {
+    if (!window.confirm("Delete the Claude Code usage scan? This cannot be undone. You can run scan-usage.mjs and import it again.")) return;
+    await deleteClaudeCodeUsage();
+    setReport(null);
+    await reload();
+  }
+
   async function wipe() {
     if (!window.confirm("Delete ALL imported data from this browser? This cannot be undone. You can import your exports again.")) return;
     await wipeAll();
@@ -330,7 +353,7 @@ export function App() {
     );
   }
 
-  const hasData = library.records.length > 0 || library.measuredSessions.length > 0;
+  const hasData = library.records.length > 0 || library.measuredSessions.length > 0 || library.claudeCodeUsage !== null;
   const viewColor = activeView === "all" ? ALL_COLOR : TOOL_META[activeView].color;
   const viewLabel = activeView === "all" ? "All tools" : TOOL_META[activeView].label;
 
@@ -353,6 +376,12 @@ export function App() {
             : "No sessions were skipped."}
         </Banner>
       )}
+      {report && report.kind === "claudeCodeUsage" && (
+        <Banner tone="ok" onClose={() => setReport(null)}>
+          Claude Code scan: <strong>{fmtInt(report.stats.messageCount)}</strong> messages across{" "}
+          <strong>{fmtInt(report.stats.sessionCount)}</strong> sessions, {fmtInt(report.stats.activeDays)} active days.
+        </Banner>
+      )}
       {error && (
         <Banner tone="error" onClose={() => setError(null)}>
           {error}
@@ -365,7 +394,15 @@ export function App() {
         <NotFoundPage onHome={() => setPage("dashboard")} />
       ) : page === "account" ? (
         // Not gated on having imported data: someone signing in on a new device must still reach their profile, and delete it.
-        <AccountPage auth={auth} sessions={derived.sessions} records={library.records} now={derived.now} timeZone={timeZone} card={library.card} />
+        <AccountPage
+          auth={auth}
+          sessions={derived.sessions}
+          records={library.records}
+          now={derived.now}
+          timeZone={timeZone}
+          card={library.card}
+          claudeCodeUsage={library.claudeCodeUsage}
+        />
       ) : !hasData ? (
         <div className="py-10">
           <Dropzone onFile={handleFile} busy={busy} />
@@ -377,6 +414,7 @@ export function App() {
           now={derived.now}
           timeZone={timeZone}
           toolsWithData={derived.toolsWithData}
+          claudeCodeUsage={library.claudeCodeUsage}
           config={library.card}
           onChange={changeCard}
           onReset={resetCard}
@@ -396,6 +434,8 @@ export function App() {
               <ToolCard key={k} name={TOOL_META[k].label} color={TOOL_META[k].color} stats={derived.stats[k]} timeZone={timeZone} />
             ))}
           </div>
+
+          {library.claudeCodeUsage && <ClaudeCodeUsagePanel stats={library.claudeCodeUsage} timeZone={timeZone} />}
 
           <Dropzone onFile={handleFile} busy={busy} compact />
 
@@ -438,9 +478,11 @@ export function App() {
               batches={library.batches}
               totalConversations={library.records.length}
               sessions={library.measuredSessions}
+              claudeCodeUsage={library.claudeCodeUsage}
               timeZone={timeZone}
               onDelete={removeBatch}
               onDeleteSessions={removeSessions}
+              onDeleteClaudeCodeUsage={removeClaudeCodeUsage}
               onWipe={wipe}
             />
           </section>

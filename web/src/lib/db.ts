@@ -4,6 +4,7 @@ import {
   normalizeCardConfig,
   recordKey,
   type CardConfig,
+  type ClaudeCodeUsageStats,
   type ConversationRecord,
   type ImportBatch,
   type Session,
@@ -24,7 +25,9 @@ interface Schema extends DBSchema {
   records: { key: string; value: StoredRecord; indexes: { byBatch: string } };
   batches: { key: string; value: ImportBatch };
   measuredSessions: { key: string; value: Session };
-  settings: { key: string; value: SessionizeOptions | CardConfig };
+  // claudeCodeUsage also lives here, under the key "claudeCodeUsage": a single snapshot, same
+  // whole-value-replace semantics as "sessionize" and "card", no new object store needed for it.
+  settings: { key: string; value: SessionizeOptions | CardConfig | ClaudeCodeUsageStats };
 }
 
 let dbPromise: Promise<IDBPDatabase<Schema>> | null = null;
@@ -63,16 +66,19 @@ export interface Library {
   measuredSessions: Session[];
   options: SessionizeOptions;
   card: CardConfig;
+  /** A local scan of Claude Code's own logs (claude-code-hook/scan-usage.mjs). Token usage, not sessions. */
+  claudeCodeUsage: ClaudeCodeUsageStats | null;
 }
 
 export async function loadLibrary(): Promise<Library> {
   const d = await db();
-  const [records, batches, measuredSessions, options, card] = await Promise.all([
+  const [records, batches, measuredSessions, options, card, claudeCodeUsage] = await Promise.all([
     d.getAll("records"),
     d.getAll("batches"),
     d.getAll("measuredSessions"),
     d.get("settings", "sessionize"),
     d.get("settings", "card"),
+    d.get("settings", "claudeCodeUsage"),
   ]);
   return {
     records,
@@ -81,6 +87,7 @@ export async function loadLibrary(): Promise<Library> {
     options: { ...DEFAULT_OPTIONS, ...(options as Partial<SessionizeOptions> | undefined) },
     // Stored data is untrusted input like any other: always normalize.
     card: normalizeCardConfig(card),
+    claudeCodeUsage: (claudeCodeUsage as ClaudeCodeUsageStats | undefined) ?? null,
   };
 }
 
@@ -165,11 +172,16 @@ export async function deleteSessions(toolKey: Session["toolKey"], source: Sessio
   await tx.done;
 }
 
-/** Deletes every import. Keeps the estimation and card settings. */
+/** Deletes every import, including the Claude Code usage snapshot. Keeps the estimation and card settings. */
 export async function wipeAll(): Promise<void> {
   const d = await db();
-  const tx = d.transaction(["records", "batches", "measuredSessions"], "readwrite");
-  await Promise.all([tx.objectStore("records").clear(), tx.objectStore("batches").clear(), tx.objectStore("measuredSessions").clear()]);
+  const tx = d.transaction(["records", "batches", "measuredSessions", "settings"], "readwrite");
+  await Promise.all([
+    tx.objectStore("records").clear(),
+    tx.objectStore("batches").clear(),
+    tx.objectStore("measuredSessions").clear(),
+    tx.objectStore("settings").delete("claudeCodeUsage"),
+  ]);
   await tx.done;
 }
 
@@ -181,6 +193,17 @@ export async function saveOptions(options: SessionizeOptions): Promise<void> {
 export async function saveCard(card: CardConfig): Promise<void> {
   const d = await db();
   await d.put("settings", card, "card");
+}
+
+/** Replaces the stored Claude Code usage snapshot wholesale: it is always a full re-scan, never something to merge. */
+export async function saveClaudeCodeUsage(stats: ClaudeCodeUsageStats): Promise<void> {
+  const d = await db();
+  await d.put("settings", stats, "claudeCodeUsage");
+}
+
+export async function deleteClaudeCodeUsage(): Promise<void> {
+  const d = await db();
+  await d.delete("settings", "claudeCodeUsage");
 }
 
 /** Asks the browser not to evict our data under storage pressure. Best effort. */
