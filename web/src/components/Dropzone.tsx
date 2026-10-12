@@ -104,6 +104,9 @@ export function Dropzone({ onFile, busy, compact = false }: Props) {
       <p className="mt-3 text-center text-xs text-muted">
         Set up the <span className="font-semibold text-ink">Claude Code hook</span> and its session log drops in here too.
       </p>
+      <p className="mt-1 text-center text-xs text-muted">
+        Run <span className="font-semibold text-ink">claude-code-hook/scan-usage.mjs</span> for a local Claude Code token usage scan.
+      </p>
     </div>
   );
 }
